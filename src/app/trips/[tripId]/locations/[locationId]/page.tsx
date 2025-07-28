@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronLeft, Sparkles, Loader2 } from 'lucide-react';
 import Image from 'next/image';
-import { getPexelsImageForLocationPage } from '@/app/actions';
+import { getPexelsImageForLocationPage, testPexelsAPI } from '@/app/actions';
 import { suggestActivities, type SuggestActivitiesInput } from '@/ai/flows/suggestActivitiesFlow';
 import { Input } from '@/components/ui/input';
 import { getTrip, updateTrip, Trip as FirestoreTrip, getCachedLocationImage, cacheLocationImage } from '@/lib/firestore';
@@ -423,19 +423,44 @@ export default function LocationPage() {
                           {format(sortedDateBlocks[0].date, "MMM d, yyyy")} - {format(sortedDateBlocks[sortedDateBlocks.length-1].date, "MMM d, yyyy")}
                       </p>
                     )}
-                    <Button onClick={handleGenerateSuggestions} disabled={isGenerating} variant="secondary" className="bg-white/20 hover:bg-white/30 text-white">
-                        {isGenerating ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                                Generating...
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles className="mr-2 h-4 w-4 text-orange-400"/>
-                                Generate Suggestions
-                            </>
-                        ) }
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button onClick={handleGenerateSuggestions} disabled={isGenerating} variant="secondary" className="bg-white/20 hover:bg-white/30 text-white">
+                            {isGenerating ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                                    Generating...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="mr-2 h-4 w-4 text-orange-400"/>
+                                    Generate Suggestions
+                                </>
+                            ) }
+                        </Button>
+                        <Button 
+                            onClick={async () => {
+                                console.log('Testing Pexels API...');
+                                const result = await testPexelsAPI();
+                                console.log('Test result:', result);
+                                if (result.success) {
+                                    toast({
+                                        title: "Pexels API Test",
+                                        description: "API connection successful! Check console for details.",
+                                    });
+                                } else {
+                                    toast({
+                                        title: "Pexels API Test",
+                                        description: `API test failed: ${result.error}`,
+                                        variant: "destructive",
+                                    });
+                                }
+                            }} 
+                            variant="outline" 
+                            className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                        >
+                            Test Pexels API
+                        </Button>
+                    </div>
                 </div>
             </div>
         </div>

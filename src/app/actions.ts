@@ -83,10 +83,46 @@ export async function getNewPexelsImage(query: string) {
   }
 }
 
+export async function testPexelsAPI() {
+  try {
+    console.log('Testing Pexels API connection...');
+    console.log('Pexels API key exists:', !!process.env.PEXELS_API_KEY);
+    console.log('Pexels API key length:', process.env.PEXELS_API_KEY?.length);
+    
+    if (!process.env.PEXELS_API_KEY) {
+      console.error('Pexels API key not found in environment variables');
+      return { success: false, error: 'API key not found' };
+    }
+    
+    const response = await fetch('https://api.pexels.com/v1/search?query=test&per_page=1', {
+      headers: {
+        Authorization: process.env.PEXELS_API_KEY,
+      },
+    });
+    
+    console.log('Pexels API response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Pexels API Error:', errorText);
+      return { success: false, error: errorText };
+    }
+    
+    const data = await response.json();
+    console.log('Pexels API response data:', data);
+    
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to test Pexels API:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
 export async function getPexelsImageForLocationPage(query: string) {
   try {
     console.log('Fetching Pexels image for query:', query);
     console.log('Pexels API key exists:', !!process.env.PEXELS_API_KEY);
+    console.log('Pexels API key length:', process.env.PEXELS_API_KEY?.length);
     
     if (!process.env.PEXELS_API_KEY) {
       console.error('Pexels API key not found in environment variables');
