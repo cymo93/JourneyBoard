@@ -34,8 +34,27 @@ export async function GET(request: Request) {
     // Randomly select one location from the trip
     const randomLocation = locationArray[Math.floor(Math.random() * locationArray.length)];
     
-    // Create a search query for the location
-    const query = `${randomLocation} iconic landscape`;
+    console.log('Selected location for image:', randomLocation);
+    console.log('All trip locations:', locationArray);
+    
+    // Create a more specific search query for the location
+    // Use different search strategies based on the location type
+    let query: string;
+    
+    // For major cities, use skyline/landmarks
+    if (['New York', 'London', 'Paris', 'Tokyo', 'Hong Kong', 'Shanghai', 'Beijing', 'Vancouver', 'Toronto', 'Sydney', 'Melbourne', 'Dubai', 'Singapore'].includes(randomLocation)) {
+      query = `${randomLocation} city skyline landmarks`;
+    }
+    // For countries, use more specific terms
+    else if (['China', 'Japan', 'France', 'Italy', 'Spain', 'Germany', 'Canada', 'Australia', 'Brazil', 'Argentina', 'Peru', 'Mexico'].includes(randomLocation)) {
+      query = `${randomLocation} famous landmarks architecture`;
+    }
+    // For other locations, use a general but specific search
+    else {
+      query = `${randomLocation} famous landmarks`;
+    }
+    
+    console.log('Search query:', query);
     
     const response = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, {
       headers: {
@@ -55,6 +74,7 @@ export async function GET(request: Request) {
     
     if (data.photos && data.photos.length > 0) {
       const photo = data.photos[0];
+      console.log('Found image for', randomLocation, ':', photo.alt);
       return NextResponse.json({
         success: true,
         data: {
