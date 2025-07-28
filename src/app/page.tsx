@@ -21,6 +21,8 @@ import { getUserTrips, createTrip, updateTrip, Trip, testFirestoreConnection } f
 import { ShareTripDialog } from '@/components/ShareTripDialog';
 import { PendingInvitations } from '@/components/PendingInvitations';
 import { DeleteTripDialog } from '@/components/DeleteTripDialog';
+import { TripImage } from '@/components/TripImage';
+import { getDefaultImage } from '@/lib/defaultImages';
 import { useToast } from '@/hooks/use-toast';
 
 const initialTrips = [
@@ -30,8 +32,8 @@ const initialTrips = [
     startDate: '2025-12-03',
     endDate: '2025-12-08',
     locations: ['Hong Kong', 'Vancouver'],
-    imageUrl: 'https://placehold.co/600x400.png',
-    imageHint: 'asia temple',
+    imageUrl: getDefaultImage('Asia Trip 2025', ['Hong Kong', 'Vancouver']).url,
+    imageHint: getDefaultImage('Asia Trip 2025', ['Hong Kong', 'Vancouver']).hint,
     tripData: {
       locations: [
         { id: 'loc1', name: 'Hong Kong', dateBlocks: [{ id: 'date1', date: '2025-12-03T00:00:00.000Z' }, { id: 'date2', date: '2025-12-04T00:00:00.000Z' }] },
@@ -45,8 +47,8 @@ const initialTrips = [
     startDate: '2026-06-15',
     endDate: '2026-06-28',
     locations: ['Paris', 'Rome', 'Barcelona'],
-    imageUrl: 'https://placehold.co/600x400.png',
-    imageHint: 'europe architecture',
+    imageUrl: getDefaultImage('European Adventure', ['Paris', 'Rome', 'Barcelona']).url,
+    imageHint: getDefaultImage('European Adventure', ['Paris', 'Rome', 'Barcelona']).hint,
     tripData: {
       locations: [
         { id: 'loc3', name: 'Paris', dateBlocks: [{ id: 'date8', date: '2026-06-15T00:00:00.000Z' }] },
@@ -61,8 +63,8 @@ const initialTrips = [
     startDate: '2026-09-01',
     endDate: '2026-09-21',
     locations: ['Peru', 'Brazil', 'Argentina'],
-    imageUrl: 'https://placehold.co/600x400.png',
-    imageHint: 'south america mountains',
+    imageUrl: getDefaultImage('South America Discovery', ['Peru', 'Brazil', 'Argentina']).url,
+    imageHint: getDefaultImage('South America Discovery', ['Peru', 'Brazil', 'Argentina']).hint,
     tripData: {
        locations: [
         { id: 'loc6', name: 'Peru', dateBlocks: [{ id: 'date11', date: '2026-09-01T00:00:00.000Z' }] },
@@ -185,8 +187,8 @@ export default function MyTripsPage() {
           startDate: '2025-12-03',
           endDate: '2025-12-08',
           locations: ['Hong Kong', 'Vancouver'],
-          imageUrl: 'https://placehold.co/600x400.png',
-          imageHint: 'asia temple',
+          imageUrl: getDefaultImage('Asia Trip 2025', ['Hong Kong', 'Vancouver']).url,
+          imageHint: getDefaultImage('Asia Trip 2025', ['Hong Kong', 'Vancouver']).hint,
           tripData: {
             locations: [
               { 
@@ -219,8 +221,8 @@ export default function MyTripsPage() {
           startDate: '2026-06-15',
           endDate: '2026-06-28',
           locations: ['Paris', 'Rome', 'Barcelona'],
-          imageUrl: 'https://placehold.co/600x400.png',
-          imageHint: 'europe architecture',
+          imageUrl: getDefaultImage('European Adventure', ['Paris', 'Rome', 'Barcelona']).url,
+          imageHint: getDefaultImage('European Adventure', ['Paris', 'Rome', 'Barcelona']).hint,
           tripData: {
             locations: [
               { id: 'loc3', name: 'Paris', dateBlocks: [{ id: 'date8', date: '2026-06-15T00:00:00.000Z', activities: [] }] },
@@ -266,8 +268,8 @@ export default function MyTripsPage() {
           startDate: format(newTripStartDate, 'yyyy-MM-dd'),
           endDate: format(newTripStartDate, 'yyyy-MM-dd'),
           locations: ['New Location'],
-          imageUrl: 'https://placehold.co/600x400.png',
-          imageHint: 'travel map',
+          imageUrl: getDefaultImage(newTripTitle, ['New Location']).url,
+          imageHint: getDefaultImage(newTripTitle, ['New Location']).hint,
           tripData: {
             locations: [
               {
@@ -465,12 +467,13 @@ export default function MyTripsPage() {
               <Link href={`/trips/${trip.id!}`} key={trip.id!} className="block">
               <Card className="group overflow-hidden rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col h-full">
                 <div className="relative">
-                    <Image
+                    <TripImage
                       src={trip.imageUrl}
                       alt={trip.title}
+                      title={trip.title}
+                      locations={trip.locations}
                       width={600}
                       height={400}
-                      data-ai-hint={trip.imageHint}
                       className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
