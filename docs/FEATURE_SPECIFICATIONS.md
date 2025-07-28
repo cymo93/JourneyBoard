@@ -15,6 +15,7 @@ This document details each feature of the JourneyBoard application, its intended
     4.  Users can reset their password via email if forgotten.
     5.  After successful authentication, users are redirected to the main trips page.
     6.  Users can sign out at any time.
+    7.  The JourneyBoard header title is clickable and navigates to the home page.
 
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ Authentication is required to access the application.
@@ -23,6 +24,7 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ Password reset functionality sends emails and allows password changes.
     -   ✅ Session persistence works across browser refreshes.
     -   ✅ Sign-out functionality clears the session properly.
+    -   ✅ JourneyBoard title in header is clickable and navigates to home page.
 
 ---
 
@@ -31,25 +33,31 @@ This document details each feature of the JourneyBoard application, its intended
 -   **File**: `src/app/page.tsx`
 -   **User Journey**:
     1.  The authenticated user lands on the homepage and sees a grid of all their trips (owned, edited, or viewed).
-    2.  Each trip is represented by a card with a title, dates, and a beautiful representative image.
-    3.  The user can create a new trip by clicking the "Create New Trip" button, which opens a dialog.
-    4.  In the dialog, the user enters a title and a start date, then clicks "Create Trip".
-    5.  Upon creation, the user is automatically navigated to the detailed page for their new trip.
-    6.  The user can click on any existing trip card to navigate to its detailed timeline page.
-    7.  The user can hover over a trip card to reveal share and delete buttons.
-    8.  Pending trip invitations are displayed at the top of the page.
-    9.  Permission badges show whether the user owns, edits, or can view each trip.
+    2.  Each trip is represented by a card with a title, date range, duration (days/nights), and a beautiful representative image.
+    3.  Trip cards show smooth hover effects with scaling and enhanced shadows.
+    4.  The user can create a new trip by clicking the "Create New Trip" button, which opens a dialog.
+    5.  In the dialog, the user enters a title and a start date, then clicks "Create Trip".
+    6.  Upon creation, the user is automatically navigated to the detailed page for their new trip.
+    7.  The user can click on any existing trip card to navigate to its detailed timeline page.
+    8.  The user can hover over a trip card to reveal image refresh and share buttons (delete is available in trip detail pages).
+    9.  Pending trip invitations are displayed at the top of the page.
+    10. Permission badges show whether the user owns, edits, or can view each trip.
+    11. Sample/onboarding trips are clearly marked and can be deleted by any user.
 
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ All trips the user has access to are displayed as cards.
-    -   ✅ Each trip card displays the trip title, date range, and a beautiful background image.
+    -   ✅ Each trip card displays the trip title, date range, duration (days/nights), and a beautiful background image.
+    -   ✅ Trip cards show location-specific images fetched from Pexels API when available.
     -   ✅ Each trip card has intelligent theme-based default images when primary images fail.
+    -   ✅ Trip cards have smooth hover effects with scaling and enhanced shadows.
     -   ✅ The "Create New Trip" dialog successfully adds a new trip to Firestore.
     -   ✅ After creating a trip, the user is redirected to `/trips/[new_trip_id]`.
     -   ✅ Clicking a trip card navigates the user to `/trips/[trip_id]`.
-    -   ✅ Share and delete buttons are available on trip cards.
+    -   ✅ Image refresh and share buttons are available on trip card hover.
+    -   ✅ Delete functionality is available in trip detail pages, not on cards.
     -   ✅ Pending invitations are displayed and can be accepted/declined.
     -   ✅ Permission badges correctly show user access levels.
+    -   ✅ Sample trips can be deleted by any user regardless of ownership.
 
 ---
 
@@ -68,6 +76,7 @@ This document details each feature of the JourneyBoard application, its intended
     9.  The user can click a "Delete" button to delete the trip (owners) or leave the trip (collaborators).
     10. The user can click on a location card (but not its buttons) to navigate to the detailed location planning page.
     11. The user can click "Find Hotels" to search for accommodation in each location.
+    12. Sample trips show special delete dialog with clear messaging about their status.
 
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ The page correctly loads and displays data for the specified `tripId`.
@@ -78,6 +87,7 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ Location names can be edited and saved.
     -   ✅ The "Share" button opens a dialog for sharing trips with other users.
     -   ✅ The "Delete" button shows appropriate confirmation dialog based on user permissions.
+    -   ✅ Sample trips show special delete dialog with "Sample Trip" badge and clear messaging.
     -   ✅ Clicking a location card navigates to `/trips/[tripId]/locations/[locationId]`.
     -   ✅ "Find Hotels" button opens Booking.com with location and dates pre-filled.
 
@@ -97,7 +107,7 @@ This document details each feature of the JourneyBoard application, its intended
     8.  An "AI-Powered Suggestions" card appears below. The user can provide additional text input to refine the AI's suggestions.
     9.  The AI generates a day-by-day plan which is displayed in a read-only text area, from which the user can copy text to paste into their daily activity notes.
     10. The user can click the banner image to view the original on Pexels, and the location title to view it on Google Maps.
-    11. The user can click "Test Pexels API" to diagnose API connection issues.
+    11. Images are cached to reduce API calls and improve performance.
 
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ The page correctly loads and displays data for the specified `locationId`.
@@ -110,7 +120,6 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ The AI suggestion card appears after the button is clicked.
     -   ✅ The AI's response is displayed in the text area. The loading state is clearly indicated.
     -   ✅ The user can type in the input field to refine AI suggestions on subsequent requests.
-    -   ✅ "Test Pexels API" button provides diagnostic information for troubleshooting.
 
 ---
 
@@ -124,6 +133,7 @@ This document details each feature of the JourneyBoard application, its intended
     4.  Recipients see pending invitations on their homepage.
     5.  They can accept or decline invitations.
     6.  Accepted invitations grant access to the shared trip with appropriate permissions.
+    7.  Real-time updates ensure all collaborators see changes immediately.
 
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ Trip owners can share trips with other users via email.
@@ -132,6 +142,7 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ Recipients can accept or decline invitations.
     -   ✅ Accepted invitations grant appropriate access to shared trips.
     -   ✅ Real-time updates work for all collaborators.
+    -   ✅ Share button is available on trip cards and trip detail pages.
 
 ---
 
@@ -139,19 +150,23 @@ This document details each feature of the JourneyBoard application, its intended
 
 -   **File**: `src/components/DeleteTripDialog.tsx`
 -   **User Journey**:
-    1.  Users can click "Delete" on any trip they have access to.
+    1.  Users can click "Delete" on any trip they have access to (from trip detail pages).
     2.  A confirmation dialog appears with different text based on user permissions.
     3.  Owners see a "Delete Trip" option that permanently removes the trip for all collaborators.
     4.  Collaborators see a "Leave Trip" option that removes their access but keeps the trip available to others.
-    5.  Users must type a confirmation phrase to proceed.
-    6.  After confirmation, the action is executed and the user is redirected appropriately.
+    5.  Sample/onboarding trips show special dialog with "Sample Trip" badge and clear messaging.
+    6.  Users must type a confirmation phrase to proceed.
+    7.  After confirmation, the action is executed and the user is redirected appropriately.
 
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ Different dialog text appears based on user permissions.
     -   ✅ Owners can permanently delete trips for all collaborators.
     -   ✅ Collaborators can leave trips without affecting other users.
+    -   ✅ Sample trips can be deleted by any user regardless of ownership.
+    -   ✅ Sample trips show "Sample Trip" badge and special messaging.
     -   ✅ Confirmation phrase requirement prevents accidental deletions.
     -   ✅ Appropriate redirects occur after successful actions.
+    -   ✅ Delete functionality is not available on trip cards (only in detail pages).
 
 ---
 
@@ -170,23 +185,67 @@ This document details each feature of the JourneyBoard application, its intended
 
 ---
 
-### 8. Pexels API Integration & Caching
+### 8. Dynamic Location-Based Trip Images
 
--   **File**: `src/app/actions.ts`, `src/lib/firestore.ts`
+-   **Files**: `src/components/TripImage.tsx`, `src/app/api/trip-location-image/route.ts`
+-   **User Journey**: Trip cards now display images specific to the trip's locations, fetched dynamically from Pexels API.
+-   **User Acceptance Criteria (UAC)**:
+    -   ✅ Trip cards fetch location-specific images from Pexels API.
+    -   ✅ Smart search queries are generated based on location type (city vs country).
+    -   ✅ API calls are made server-side to protect API keys.
+    -   ✅ Images are selected randomly from available trip locations.
+    -   ✅ Fallback to default images when API calls fail.
+    -   ✅ Performance optimized with efficient loading and error handling.
+    -   ✅ Debug logging shows selected locations and search queries.
+
+---
+
+### 9. Pexels API Integration & Caching
+
+-   **Files**: `src/app/actions.ts`, `src/app/api/pexels-banner/route.ts`, `src/lib/firestore.ts`
 -   **User Journey**: This is a background feature. The user experiences it through the dynamic images on location pages and trip cards.
 -   **User Acceptance Criteria (UAC)**:
-    -   ✅ The Pexels API key is stored securely in `.env.local` and is never exposed to the client.
-    -   ✅ Server actions handle all API requests to Pexels with proper Bearer token authentication.
+    -   ✅ The Pexels API key is stored securely in environment variables and is never exposed to the client.
+    -   ✅ API routes handle all API requests to Pexels with proper Bearer token authentication.
     -   ✅ Location banner images are fetched with intelligent queries (e.g., "Vancouver iconic landscape").
     -   ✅ Images are cached in Firestore `locationImages` collection to reduce API calls.
     -   ✅ Cache includes image URL, alt text, photographer attribution, and timestamp.
     -   ✅ Comprehensive error handling with fallback mechanisms.
-    -   ✅ "Test Pexels API" function provides diagnostic capabilities.
+    -   ✅ API routes work correctly in both development and production environments.
     -   ✅ The Next.js image config allows the `images.pexels.com` domain.
 
 ---
 
-### 9. AI Suggestion Generation
+### 10. Enhanced Trip Card UI/UX
+
+-   **File**: `src/app/page.tsx`
+-   **User Journey**: Trip cards now provide a more polished and intuitive user experience with better visual feedback and information display.
+-   **User Acceptance Criteria (UAC)**:
+    -   ✅ Trip cards display days/nights calculation automatically.
+    -   ✅ Hover effects include smooth scaling and enhanced shadows.
+    -   ✅ Action buttons (image refresh, share) are more prominent with better styling.
+    -   ✅ Delete functionality is removed from cards (available in detail pages).
+    -   ✅ Better spacing and typography throughout the card layout.
+    -   ✅ Responsive design works well on both desktop and mobile.
+    -   ✅ Cards clearly indicate they are clickable with cursor pointer.
+    -   ✅ Smooth transitions and animations enhance user experience.
+
+---
+
+### 11. Navigation & Header Improvements
+
+-   **File**: `src/components/AuthWrapper.tsx`
+-   **User Journey**: Users can now easily navigate back to the main trips page from anywhere in the application.
+-   **User Acceptance Criteria (UAC)**:
+    -   ✅ JourneyBoard title in header is clickable and navigates to home page.
+    -   ✅ Hover effects indicate the title is clickable.
+    -   ✅ Navigation works consistently across all pages.
+    -   ✅ Header maintains its styling and functionality.
+    -   ✅ User authentication status and logout remain accessible.
+
+---
+
+### 12. AI Suggestion Generation
 
 -   **File**: `src/ai/flows/suggestActivitiesFlow.ts`
 -   **User Journey**: The user interacts with this feature via the "Generate Suggestions" button on the location page.
@@ -199,7 +258,7 @@ This document details each feature of the JourneyBoard application, its intended
 
 ---
 
-### 10. Error Handling & User Experience
+### 13. Error Handling & User Experience
 
 -   **Files**: Throughout the application
 -   **User Journey**: Users encounter various error states and edge cases during normal usage.
@@ -211,10 +270,11 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ Form validation prevents invalid data submission.
     -   ✅ Toast notifications provide feedback for user actions.
     -   ✅ Graceful degradation when external services are unavailable.
+    -   ✅ Image loading failures are handled gracefully with fallbacks.
 
 ---
 
-### 11. Performance & Optimization
+### 14. Performance & Optimization
 
 -   **Files**: Throughout the application
 -   **User Journey**: Users expect fast, responsive interactions regardless of their device or connection.
@@ -224,4 +284,35 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ Real-time updates don't cause performance issues.
     -   ✅ The application works well on both desktop and mobile devices.
     -   ✅ Large datasets don't cause UI lag or freezing.
-    -   ✅ Offline functionality preserves user data and state.
+    -   ✅ Hover effects and animations are smooth and performant.
+    -   ✅ Trip cards scale and animate smoothly on hover.
+
+---
+
+### 15. Security & Privacy
+
+-   **Files**: Throughout the application
+-   **User Journey**: Users expect their data to be secure and their privacy to be protected.
+-   **User Acceptance Criteria (UAC)**:
+    -   ✅ All API keys are stored server-side and never exposed to the client.
+    -   ✅ User authentication is required for all data access.
+    -   ✅ Firestore security rules prevent unauthorized access.
+    -   ✅ Trip sharing permissions are properly enforced.
+    -   ✅ User data is encrypted in transit and at rest.
+    -   ✅ Users can delete their data at any time.
+    -   ✅ No personal data is collected beyond app functionality.
+
+---
+
+### 16. Mobile Responsiveness
+
+-   **Files**: Throughout the application
+-   **User Journey**: Users access the application from various devices and screen sizes.
+-   **User Acceptance Criteria (UAC)**:
+    -   ✅ The application works well on mobile devices.
+    -   ✅ Trip cards are properly sized and touch-friendly.
+    -   ✅ Navigation is accessible on small screens.
+    -   ✅ Forms and dialogs are usable on mobile.
+    -   ✅ Images scale appropriately for different screen sizes.
+    -   ✅ Hover effects work appropriately on touch devices.
+    -   ✅ Text is readable on all screen sizes.
