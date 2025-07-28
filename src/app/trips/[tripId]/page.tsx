@@ -20,7 +20,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Hotel,
   PlusCircle,
   MapPin,
   Plane,
@@ -444,21 +443,7 @@ export default function JourneyBoardPage() {
     }
   };
 
-  const handleFindHotels = (location: Location) => {
-    if (location.dateBlocks.length === 0) {
-        toast({
-          title: "Cannot find hotels",
-          description: "Please add dates to the location first.",
-          variant: "destructive"
-        });
-        return;
-    }
-    const sortedDates = [...location.dateBlocks].sort((a,b) => a.date.getTime() - b.date.getTime());
-    const checkin = format(sortedDates[0].date, 'yyyy-MM-dd');
-    const checkout = format(addDays(sortedDates[sortedDates.length - 1].date, 1), 'yyyy-MM-dd');
-    const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(location.name)}&checkin=${checkin}&checkout=${checkout}&group_adults=2&no_rooms=1&group_children=0`;
-    window.open(url, '_blank');
-  };
+
   
   const handleCardClick = (e: MouseEvent, loc: Location) => {
     if ((e.target as HTMLElement).closest('button, a, input')) {
@@ -586,10 +571,7 @@ export default function JourneyBoardPage() {
                         <p className="text-sm text-foreground/60 pl-7">
                           {days > 0 ? `${days} day${days === 1 ? '' : 's'} / ${nights} night${nights === 1 ? '' : 's'}` : 'No days assigned'}
                         </p>
-                        <Button variant="outline" size="sm" className="gap-2 text-foreground/80 bg-card hover:bg-secondary/50" onClick={() => handleFindHotels(loc)}>
-                           <Hotel className="w-4 h-4"/>
-                           Find Hotels
-                        </Button>
+
                     </div>
                     
                     <div className="col-span-12 md:col-span-8 lg:col-span-9 flex flex-wrap gap-2 items-center">
