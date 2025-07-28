@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { MapPin, Camera } from 'lucide-react';
 import { getDefaultImage } from '@/lib/defaultImages';
@@ -28,6 +28,7 @@ export function TripImage({
 }: TripImageProps) {
   const [imageError, setImageError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [locationImage, setLocationImage] = useState<{url: string, alt: string} | null>(null);
 
   const handleImageError = () => {
     setImageError(true);
@@ -38,16 +39,52 @@ export function TripImage({
     setIsLoading(false);
   };
 
+  // Fetch location image when component mounts
+  useEffect(() => {
+    const fetchLocationImage = async () => {
+      try {
+        const response = await fetch(`/api/trip-location-image?locations=${encodeURIComponent(JSON.stringify(locations))}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+          setLocationImage({
+            url: result.data.url,
+            alt: result.data.alt
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch location image:', error);
+      }
+    };
+
+    // Only fetch if we have locations and no valid src
+    if (locations.length > 0 && (!src || src === '' || src.includes('placehold.co') || src.includes('600 × 400'))) {
+      fetchLocationImage();
+    }
+  }, [locations, src]);
+
   // Check if the image URL is a placeholder or invalid
   const isPlaceholder = src.includes('placehold.co') || src.includes('600 × 400') || !src || src === '';
   
   // Get default image if needed
   const defaultImage = getDefaultImage(title, locations);
   
-  // Use default image if error, placeholder, or empty src, otherwise use original
-  const shouldUseDefault = imageError || isPlaceholder || !src || src === '';
-  const imageSrc = shouldUseDefault ? defaultImage.url : src;
-  const imageAlt = shouldUseDefault ? defaultImage.alt : alt;
+  // Priority: location image > original src > default image
+  let imageSrc: string;
+  let imageAlt: string;
+  
+  if (locationImage && (isPlaceholder || !src || src === '')) {
+    imageSrc = locationImage.url;
+    imageAlt = locationImage.alt;
+  } else if (!isPlaceholder && src && src !== '') {
+    imageSrc = src;
+    imageAlt = alt;
+  } else {
+    imageSrc = defaultImage.url;
+    imageAlt = defaultImage.alt;
+  }
+  
+  const shouldUseDefault = imageError || (isPlaceholder && !locationImage);
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
@@ -59,7 +96,7 @@ export function TripImage({
       )}
       
       {/* Error state or placeholder with fallback */}
-      {(imageError || isPlaceholder) && (
+      {(imageError || (isPlaceholder && !locationImage)) && (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center z-20">
           <div className="text-center p-4">
             <MapPin className="w-12 h-12 text-blue-400 mx-auto mb-2" />
