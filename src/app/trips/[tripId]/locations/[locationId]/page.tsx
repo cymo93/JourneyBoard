@@ -149,19 +149,20 @@ export default function LocationPage() {
         return;
       }
       
-      // If no cached image, fetch from Pexels
+      // If no cached image, fetch from Pexels using API route
       console.log('Fetching new image from Pexels for:', locationName);
-      const bannerData = await getPexelsImageForLocationPage(`${locationName} iconic landscape`);
+      const response = await fetch(`/api/pexels-banner?query=${encodeURIComponent(`${locationName} iconic landscape`)}`);
+      const result = await response.json();
       
-      if (bannerData) {
-        console.log('Banner loaded from Pexels:', bannerData);
-        setBanner(bannerData);
+      if (result.success && result.data) {
+        console.log('Banner loaded from Pexels:', result.data);
+        setBanner(result.data);
         
         // Cache the image for future use
         await cacheLocationImage(locationName, {
-          url: bannerData.url,
-          alt: bannerData.alt,
-          photographerUrl: bannerData.photographerUrl
+          url: result.data.url,
+          alt: result.data.alt,
+          photographerUrl: result.data.photographerUrl
         });
       } else {
         console.log('No banner data received from Pexels, using fallback');
