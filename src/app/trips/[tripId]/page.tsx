@@ -29,7 +29,8 @@ import {
   Pencil,
   X,
   Share2,
-  Trash2
+  Trash2,
+  Hotel
 } from 'lucide-react';
 import { getTrip, updateTrip, Trip as FirestoreTrip } from '@/lib/firestore';
 import { ShareTripDialog } from '@/components/ShareTripDialog';
@@ -435,7 +436,7 @@ export default function JourneyBoardPage() {
     setEditingLocationId(null);
   };
 
-  const handleLocationNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, locationId: string) => {
+    const handleLocationNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, locationId: string) => {
     if (e.key === 'Enter') {
       handleSaveLocationName(locationId);
     } else if (e.key === 'Escape') {
@@ -443,9 +444,23 @@ export default function JourneyBoardPage() {
     }
   };
 
-
-  
-  const handleCardClick = (e: MouseEvent, loc: Location) => {
+  const handleFindHotels = (location: Location) => {
+    if (location.dateBlocks.length === 0) {
+        toast({
+          title: "Cannot find hotels",
+          description: "Please add dates to the location first.",
+          variant: "destructive"
+        });
+        return;
+    }
+    const sortedDates = [...location.dateBlocks].sort((a,b) => a.date.getTime() - b.date.getTime());
+    const checkin = format(sortedDates[0].date, 'yyyy-MM-dd');
+    const checkout = format(addDays(sortedDates[sortedDates.length - 1].date, 1), 'yyyy-MM-dd');
+    const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(location.name)}&checkin=${checkin}&checkout=${checkout}&group_adults=2&no_rooms=1&group_children=0`;
+    window.open(url, '_blank');
+  };
+    
+    const handleCardClick = (e: MouseEvent, loc: Location) => {
     if ((e.target as HTMLElement).closest('button, a, input')) {
       return;
     }
@@ -568,11 +583,14 @@ export default function JourneyBoardPage() {
                             </div>
                           )}
                         </div>
-                        <p className="text-sm text-foreground/60 pl-7">
+                                                <p className="text-sm text-foreground/60 pl-7">
                           {days > 0 ? `${days} day${days === 1 ? '' : 's'} / ${nights} night${nights === 1 ? '' : 's'}` : 'No days assigned'}
                         </p>
-
-                    </div>
+                        <Button variant="outline" size="sm" className="gap-2 text-foreground/80 bg-card hover:bg-secondary/50" onClick={() => handleFindHotels(loc)}>
+                           <Hotel className="w-4 h-4"/>
+                           Find Hotels
+                        </Button>
+                      </div>
                     
                     <div className="col-span-12 md:col-span-8 lg:col-span-9 flex flex-wrap gap-2 items-center">
                         {sortedDateBlocks.map((block, index) => {
