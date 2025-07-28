@@ -443,17 +443,26 @@ export default function LocationPage() {
                         <Button 
                             onClick={async () => {
                                 console.log('Testing Pexels API...');
-                                const result = await testPexelsAPI();
-                                console.log('Test result:', result);
-                                if (result.success) {
+                                try {
+                                    const response = await fetch('/api/pexels-test');
+                                    const result = await response.json();
+                                    console.log('Test result:', result);
+                                    if (result.success) {
+                                        toast({
+                                            title: "Pexels API Test",
+                                            description: "API connection successful! Images should load now.",
+                                        });
+                                    } else {
+                                        toast({
+                                            title: "Pexels API Test",
+                                            description: `API test failed: ${result.error}. Check your API key and account status.`,
+                                            variant: "destructive",
+                                        });
+                                    }
+                                } catch (error) {
                                     toast({
                                         title: "Pexels API Test",
-                                        description: "API connection successful! Images should load now.",
-                                    });
-                                } else {
-                                    toast({
-                                        title: "Pexels API Test",
-                                        description: `API test failed: ${result.error}. Check your API key and account status.`,
+                                        description: `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
                                         variant: "destructive",
                                     });
                                 }
