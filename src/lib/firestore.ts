@@ -262,6 +262,7 @@ export const getPendingInvitations = async (email: string): Promise<Array<{
   tripTitle?: string;
 }>> => {
   try {
+    console.log('Getting pending invitations for email:', email);
     const invitationsRef = collection(db, 'invitations');
     const q = query(
       invitationsRef,
@@ -270,33 +271,50 @@ export const getPendingInvitations = async (email: string): Promise<Array<{
     );
     
     const snapshot = await getDocs(q);
+    console.log('Found', snapshot.docs.length, 'pending invitations');
     const invitations = [];
     
     for (const docSnap of snapshot.docs) {
       const data = docSnap.data();
+      console.log('Processing invitation:', data);
+      console.log('Document ID:', docSnap.id);
+      
       // Get trip title for display
       try {
         const tripDoc = await getDoc(doc(db, 'trips', data.tripId));
-        const tripData = tripDoc.data() as any;
-        invitations.push({
-          id: docSnap.id,
-          tripId: data.tripId,
-          permission: data.permission,
-          invitedAt: data.invitedAt,
-          tripTitle: tripData?.title || 'Unknown Trip'
-        });
+        if (tripDoc.exists()) {
+          const tripData = tripDoc.data() as any;
+          console.log('Trip data found:', tripData);
+          invitations.push({
+            id: docSnap.id, // This is the correct document ID to use for accepting
+            tripId: data.tripId,
+            permission: data.permission,
+            invitedAt: data.invitedAt,
+            tripTitle: tripData?.title || 'Untitled Trip'
+          });
+        } else {
+          console.warn('Trip not found for ID:', data.tripId);
+          invitations.push({
+            id: docSnap.id,
+            tripId: data.tripId,
+            permission: data.permission,
+            invitedAt: data.invitedAt,
+            tripTitle: 'Trip Not Found'
+          });
+        }
       } catch (error) {
-        console.error('Error fetching trip title:', error);
+        console.error('Error fetching trip title for tripId:', data.tripId, error);
         invitations.push({
           id: docSnap.id,
           tripId: data.tripId,
           permission: data.permission,
           invitedAt: data.invitedAt,
-          tripTitle: 'Unknown Trip'
+          tripTitle: 'Error Loading Trip'
         });
       }
     }
     
+    console.log('Returning invitations:', invitations);
     return invitations;
   } catch (error) {
     console.error('Error getting pending invitations:', error);
@@ -306,34 +324,55 @@ export const getPendingInvitations = async (email: string): Promise<Array<{
 
 export const acceptInvitation = async (invitationId: string, userId: string): Promise<{ success: boolean; message: string }> => {
   try {
+    console.log('Accepting invitation:', invitationId, 'for user:', userId);
+    
     const invitationRef = doc(db, 'invitations', invitationId);
     const invitationSnap = await getDoc(invitationRef);
     
     if (!invitationSnap.exists()) {
+      console.error('Invitation not found:', invitationId);
       return { success: false, message: 'Invitation not found' };
     }
     
     const invitation = invitationSnap.data();
+    console.log('Invitation data:', invitation);
+    
+    if (!invitation.tripId) {
+      console.error('Invitation missing tripId:', invitation);
+      return { success: false, message: 'Invalid invitation data' };
+    }
+    
     const tripRef = doc(db, 'trips', invitation.tripId);
+    
+    // Check if trip exists
+    const tripSnap = await getDoc(tripRef);
+    if (!tripSnap.exists()) {
+      console.error('Trip not found:', invitation.tripId);
+      return { success: false, message: 'Trip not found' };
+    }
     
     // Add user to the appropriate array
     if (invitation.permission === 'edit') {
+      console.log('Adding user as editor to trip:', invitation.tripId);
       await updateDoc(tripRef, {
         editors: arrayUnion(userId)
       });
     } else {
+      console.log('Adding user as viewer to trip:', invitation.tripId);
       await updateDoc(tripRef, {
         viewers: arrayUnion(userId)
       });
     }
     
     // Mark invitation as accepted
+    console.log('Marking invitation as accepted');
     await updateDoc(invitationRef, {
       status: 'accepted',
       acceptedAt: serverTimestamp(),
       acceptedBy: userId
     });
     
+    console.log('Invitation accepted successfully');
     return { success: true, message: 'Invitation accepted successfully' };
   } catch (error) {
     console.error('Error accepting invitation:', error);
