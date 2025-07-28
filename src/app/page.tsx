@@ -13,14 +13,13 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, MapPin, Plus, RotateCw, Users, Share2, Trash2, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Plus, RotateCw, Users, Share2, Clock } from 'lucide-react';
 import { getPexelsImage, getNewPexelsImage } from './actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserTrips, createTrip, updateTrip, Trip, testFirestoreConnection } from '@/lib/firestore';
 import { ShareTripDialog } from '@/components/ShareTripDialog';
 import { PendingInvitations } from '@/components/PendingInvitations';
-import { DeleteTripDialog } from '@/components/DeleteTripDialog';
 import { TripImage } from '@/components/TripImage';
 
 import { useToast } from '@/hooks/use-toast';
@@ -468,7 +467,7 @@ export default function MyTripsPage() {
               console.log('Rendering trip:', trip.title, 'ownerId:', trip.ownerId, 'user.uid:', user?.uid, 'isOwner:', trip.ownerId === user?.uid);
               return (
               <Link href={`/trips/${trip.id!}`} key={trip.id!} className="block">
-              <Card className="group overflow-hidden rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col h-full">
+              <Card className="group overflow-hidden rounded-lg shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col h-full cursor-pointer hover:scale-[1.02]">
                 <div className="relative h-48">
                     <TripImage
                       src={trip.imageUrl}
@@ -480,13 +479,13 @@ export default function MyTripsPage() {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                    <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="text-white/70 hover:text-white hover:bg-white/20"
+                            className="text-white/80 hover:text-white hover:bg-white/30 backdrop-blur-sm"
                             onClick={(e) => handleUpdateImage(e, trip.id!)}
                           >
                             <RotateCw className="w-4 h-4" />
@@ -502,7 +501,7 @@ export default function MyTripsPage() {
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="text-white/70 hover:text-white hover:bg-white/20"
+                              className="text-white/80 hover:text-white hover:bg-white/30 backdrop-blur-sm"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -516,33 +515,13 @@ export default function MyTripsPage() {
                           </TooltipContent>
                         </Tooltip>
                       </ShareTripDialog>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <DeleteTripDialog trip={trip} onTripDeleted={loadTrips}>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="text-white/70 hover:text-white hover:bg-white/20 hover:bg-red-500/20"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </DeleteTripDialog>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Delete trip</p>
-                        </TooltipContent>
-                      </Tooltip>
                     </div>
 
                     <CardHeader className="absolute bottom-0 left-0 right-0 text-white p-4">
                       <CardTitle className="text-2xl font-bold">{trip.title}</CardTitle>
                     </CardHeader>
                 </div>
-                <CardContent className="p-6 pt-4 flex-grow">
+                <CardContent className="p-6 pt-5 flex-grow">
                   <div className="flex items-center text-sm text-gray-500 mb-3">
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     <span>{format(new Date(trip.startDate), 'MMM d, yyyy')} - {format(new Date(trip.endDate), 'MMM d, yyyy')}</span>
@@ -564,7 +543,7 @@ export default function MyTripsPage() {
                     </span>
                   </div>
                 </CardContent>
-                <CardFooter className="p-6 bg-gray-50 border-t">
+                <CardFooter className="p-6 bg-gray-50/80 border-t backdrop-blur-sm">
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center text-sm text-gray-500">
                         <Users className="mr-2 h-4 w-4" />
