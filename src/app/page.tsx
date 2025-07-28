@@ -13,13 +13,14 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, MapPin, Plus, RotateCw, Users, Share2 } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Plus, RotateCw, Users, Share2, Trash2 } from 'lucide-react';
 import { getPexelsImage, getNewPexelsImage } from './actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
 import { getUserTrips, createTrip, updateTrip, Trip, testFirestoreConnection } from '@/lib/firestore';
 import { ShareTripDialog } from '@/components/ShareTripDialog';
 import { PendingInvitations } from '@/components/PendingInvitations';
+import { DeleteTripDialog } from '@/components/DeleteTripDialog';
 import { useToast } from '@/hooks/use-toast';
 
 const initialTrips = [
@@ -509,6 +510,26 @@ export default function MyTripsPage() {
                           </TooltipContent>
                         </Tooltip>
                       </ShareTripDialog>
+                      <DeleteTripDialog trip={trip} onTripDeleted={loadTrips}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="text-white/70 hover:text-white hover:bg-white/20 hover:bg-red-500/20"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Delete trip</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </DeleteTripDialog>
                     </div>
 
                     <CardHeader className="absolute bottom-0 text-white">

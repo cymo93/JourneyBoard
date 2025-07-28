@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { getTrip, updateTrip, Trip as FirestoreTrip } from '@/lib/firestore';
 import { ShareTripDialog } from '@/components/ShareTripDialog';
+import { DeleteTripDialog } from '@/components/DeleteTripDialog';
 
 type DateBlock = {
   id: string;
@@ -511,6 +512,12 @@ export default function JourneyBoardPage() {
                             Share
                         </Button>
                     </ShareTripDialog>
+                    <DeleteTripDialog trip={trip as any} onTripDeleted={() => router.push('/')}>
+                        <Button variant="outline" className="bg-card hover:bg-secondary/50 border-destructive/20 text-destructive hover:bg-destructive/10">
+                            <Trash2 className="mr-2 h-4 w-4"/>
+                            Delete
+                        </Button>
+                    </DeleteTripDialog>
                 </div>
             </div>
             <div className="flex justify-between items-end pb-4">
