@@ -398,7 +398,10 @@ export default function LocationPage() {
             <div className="w-full h-full bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800 flex items-center justify-center">
               <div className="text-center text-white">
                 <div className="text-6xl font-bold mb-2">{location.name}</div>
-                <div className="text-xl opacity-80">Loading beautiful landscape...</div>
+                <div className="text-xl opacity-80">
+                  {location.name} • {sortedDateBlocks.length} day{sortedDateBlocks.length !== 1 ? 's' : ''}
+                </div>
+                <div className="text-sm opacity-60 mt-2">Beautiful landscape images coming soon</div>
               </div>
             </div>
           )}
@@ -445,18 +448,19 @@ export default function LocationPage() {
                                 if (result.success) {
                                     toast({
                                         title: "Pexels API Test",
-                                        description: "API connection successful! Check console for details.",
+                                        description: "API connection successful! Images should load now.",
                                     });
                                 } else {
                                     toast({
                                         title: "Pexels API Test",
-                                        description: `API test failed: ${result.error}`,
+                                        description: `API test failed: ${result.error}. Check your API key and account status.`,
                                         variant: "destructive",
                                     });
                                 }
                             }} 
                             variant="outline" 
                             className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                            title="Test if your Pexels API key is working"
                         >
                             Test Pexels API
                         </Button>
