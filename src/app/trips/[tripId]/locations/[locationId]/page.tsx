@@ -13,7 +13,7 @@ import Image from 'next/image';
 import { getPexelsImageForLocationPage } from '@/app/actions';
 import { suggestActivities, type SuggestActivitiesInput } from '@/ai/flows/suggestActivitiesFlow';
 import { Input } from '@/components/ui/input';
-import { getTrip, updateTrip, Trip as FirestoreTrip } from '@/lib/firestore';
+import { getTrip, updateTrip, Trip as FirestoreTrip, getCachedLocationImage, cacheLocationImage } from '@/lib/firestore';
 import { useToast } from '@/hooks/use-toast';
 
 type Activity = {
@@ -129,9 +129,49 @@ export default function LocationPage() {
 
   useEffect(() => {
     if (location?.name) {
-      getPexelsImageForLocationPage(`${location.name} iconic landscape`).then(setBanner as any);
+      loadBannerImage(location.name);
     }
   }, [location?.name]);
+
+  const loadBannerImage = async (locationName: string) => {
+    try {
+      console.log('Loading banner for location:', locationName);
+      
+      // First, try to get cached image
+      const cachedImage = await getCachedLocationImage(locationName);
+      if (cachedImage) {
+        console.log('Using cached image for:', locationName);
+        setBanner({
+          url: cachedImage.imageUrl,
+          alt: cachedImage.alt,
+          photographerUrl: cachedImage.photographerUrl
+        });
+        return;
+      }
+      
+      // If no cached image, fetch from Pexels
+      console.log('Fetching new image from Pexels for:', locationName);
+      const bannerData = await getPexelsImageForLocationPage(`${locationName} iconic landscape`);
+      
+      if (bannerData) {
+        console.log('Banner loaded from Pexels:', bannerData);
+        setBanner(bannerData);
+        
+        // Cache the image for future use
+        await cacheLocationImage(locationName, {
+          url: bannerData.url,
+          alt: bannerData.alt,
+          photographerUrl: bannerData.photographerUrl
+        });
+      } else {
+        console.log('No banner data received from Pexels, using fallback');
+        setBanner(null);
+      }
+    } catch (error) {
+      console.error('Error loading banner:', error);
+      setBanner(null);
+    }
+  };
   
   useEffect(() => {
     if (location) {
@@ -344,16 +384,25 @@ export default function LocationPage() {
     <div className="min-h-screen w-full bg-background font-sans text-foreground flex flex-col">
       <header className={`sticky top-0 z-20 transition-all duration-300 ${isScrolled ? 'h-60' : 'h-80'}`}>
         <div className="absolute inset-0">
-          <a href={banner?.photographerUrl || '#'} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
-            <Image 
-                src={banner?.url || "https://placehold.co/1200x400.png"}
-                alt={banner?.alt || `${location.name} banner`}
-                fill
-                className="object-cover"
-                priority
-            />
-          </a>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-black/20" />
+          {banner?.url ? (
+            <a href={banner.photographerUrl} target="_blank" rel="noopener noreferrer" className="block w-full h-full">
+              <Image 
+                  src={banner.url}
+                  alt={banner.alt || `${location.name} banner`}
+                  fill
+                  className="object-cover"
+                  priority
+              />
+            </a>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-blue-600 via-purple-600 to-indigo-800 flex items-center justify-center">
+              <div className="text-center text-white">
+                <div className="text-6xl font-bold mb-2">{location.name}</div>
+                <div className="text-xl opacity-80">Loading beautiful landscape...</div>
+              </div>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-black/20" />
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col justify-between py-6">
             <div>

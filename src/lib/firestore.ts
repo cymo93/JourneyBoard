@@ -405,4 +405,52 @@ export const removeTripAccess = async (tripId: string, userId: string, permissio
       message: error instanceof Error ? error.message : 'Failed to remove access' 
     };
   }
+};
+
+// Image caching functions
+export interface CachedImage {
+  id?: string;
+  locationName: string;
+  imageUrl: string;
+  alt: string;
+  photographerUrl: string;
+  cachedAt: any;
+}
+
+export const getCachedLocationImage = async (locationName: string): Promise<CachedImage | null> => {
+  try {
+    const imagesRef = collection(db, 'locationImages');
+    const q = query(imagesRef, where('locationName', '==', locationName));
+    const snapshot = await getDocs(q);
+    
+    if (!snapshot.empty) {
+      const doc = snapshot.docs[0];
+      return { id: doc.id, ...doc.data() } as CachedImage;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error getting cached image:', error);
+    return null;
+  }
+};
+
+export const cacheLocationImage = async (locationName: string, imageData: {
+  url: string;
+  alt: string;
+  photographerUrl: string;
+}): Promise<void> => {
+  try {
+    const imagesRef = collection(db, 'locationImages');
+    await addDoc(imagesRef, {
+      locationName,
+      imageUrl: imageData.url,
+      alt: imageData.alt,
+      photographerUrl: imageData.photographerUrl,
+      cachedAt: serverTimestamp()
+    });
+    console.log('Image cached for location:', locationName);
+  } catch (error) {
+    console.error('Error caching image:', error);
+  }
 }; 

@@ -85,9 +85,17 @@ export async function getNewPexelsImage(query: string) {
 
 export async function getPexelsImageForLocationPage(query: string) {
   try {
+    console.log('Fetching Pexels image for query:', query);
+    console.log('Pexels API key exists:', !!process.env.PEXELS_API_KEY);
+    
+    if (!process.env.PEXELS_API_KEY) {
+      console.error('Pexels API key not found in environment variables');
+      return null;
+    }
+    
     const response = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, {
       headers: {
-        Authorization: process.env.PEXELS_API_KEY!,
+        Authorization: process.env.PEXELS_API_KEY,
       },
     });
 
@@ -101,6 +109,7 @@ export async function getPexelsImageForLocationPage(query: string) {
 
     if (parsedData.success && parsedData.data.photos.length > 0) {
       const photo = parsedData.data.photos[0];
+      console.log('Successfully fetched Pexels image:', photo.src.large2x);
       return {
         url: photo.src.large2x, // Use high resolution for the banner
         alt: photo.alt,
@@ -108,6 +117,7 @@ export async function getPexelsImageForLocationPage(query: string) {
       }
     } else {
        console.error('Pexels API parsing error or no photos found:', parsedData.error);
+       console.error('Raw API response:', data);
        return null;
     }
   } catch (error) {
