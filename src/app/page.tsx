@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useAuth } from '@/hooks/useAuth';
 import { getUserTrips, createTrip, updateTrip, Trip, testFirestoreConnection } from '@/lib/firestore';
 import { ShareTripDialog } from '@/components/ShareTripDialog';
+import { PendingInvitations } from '@/components/PendingInvitations';
 import { useToast } from '@/hooks/use-toast';
 
 const initialTrips = [
@@ -428,6 +429,7 @@ export default function MyTripsPage() {
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <PendingInvitations />
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">

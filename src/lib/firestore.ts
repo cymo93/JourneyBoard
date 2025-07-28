@@ -242,7 +242,7 @@ export const shareTrip = async (tripId: string, email: string, permission: 'edit
     
     return { 
       success: true, 
-      message: `Invitation sent to ${email} with ${permission} access` 
+      message: `Invitation stored for ${email}. They'll see it when they log in to JourneyBoard. Note: Email notifications coming soon!` 
     };
   } catch (error) {
     console.error('Error sharing trip:', error);
@@ -250,6 +250,57 @@ export const shareTrip = async (tripId: string, email: string, permission: 'edit
       success: false, 
       message: error instanceof Error ? error.message : 'Failed to share trip' 
     };
+  }
+};
+
+// Get pending invitations for a user
+export const getPendingInvitations = async (email: string): Promise<Array<{
+  id: string;
+  tripId: string;
+  permission: 'edit' | 'view';
+  invitedAt: any;
+  tripTitle?: string;
+}>> => {
+  try {
+    const invitationsRef = collection(db, 'invitations');
+    const q = query(
+      invitationsRef,
+      where('email', '==', email),
+      where('status', '==', 'pending')
+    );
+    
+    const snapshot = await getDocs(q);
+    const invitations = [];
+    
+    for (const docSnap of snapshot.docs) {
+      const data = docSnap.data();
+      // Get trip title for display
+      try {
+        const tripDoc = await getDoc(doc(db, 'trips', data.tripId));
+        const tripData = tripDoc.data() as any;
+        invitations.push({
+          id: docSnap.id,
+          tripId: data.tripId,
+          permission: data.permission,
+          invitedAt: data.invitedAt,
+          tripTitle: tripData?.title || 'Unknown Trip'
+        });
+      } catch (error) {
+        console.error('Error fetching trip title:', error);
+        invitations.push({
+          id: docSnap.id,
+          tripId: data.tripId,
+          permission: data.permission,
+          invitedAt: data.invitedAt,
+          tripTitle: 'Unknown Trip'
+        });
+      }
+    }
+    
+    return invitations;
+  } catch (error) {
+    console.error('Error getting pending invitations:', error);
+    return [];
   }
 };
 
