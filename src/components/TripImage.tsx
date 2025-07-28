@@ -41,19 +41,22 @@ export function TripImage({
   // If the original image failed, use a default image based on trip content
   const imageSrc = imageError ? getDefaultImage(title, locations).url : src;
   const imageAlt = imageError ? getDefaultImage(title, locations).alt : alt;
+  
+  // Check if the image URL is a placeholder or invalid
+  const isPlaceholder = src.includes('placehold.co') || src.includes('600 × 400') || !src || src === '';
 
   return (
     <div className={`relative ${className}`}>
       {/* Loading state */}
-      {isLoading && (
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse flex items-center justify-center">
+      {isLoading && !imageError && !isPlaceholder && (
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse flex items-center justify-center z-10">
           <Camera className="w-8 h-8 text-gray-400" />
         </div>
       )}
       
-      {/* Error state with fallback */}
-      {imageError && (
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      {/* Error state or placeholder with fallback */}
+      {(imageError || isPlaceholder) && (
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center z-20">
           <div className="text-center p-4">
             <MapPin className="w-12 h-12 text-blue-400 mx-auto mb-2" />
             <p className="text-sm text-blue-600 font-medium">{title}</p>
@@ -68,11 +71,11 @@ export function TripImage({
         alt={imageAlt}
         width={width}
         height={height}
-        className={`transition-opacity duration-300 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+        className={`transition-opacity duration-300 ${(isLoading && !imageError && !isPlaceholder) ? 'opacity-0' : 'opacity-100'}`}
         onError={handleImageError}
         onLoad={handleImageLoad}
         priority={priority}
-        unoptimized={imageError} // Don't optimize fallback images
+        unoptimized={imageError || isPlaceholder} // Don't optimize fallback images
       />
     </div>
   );
