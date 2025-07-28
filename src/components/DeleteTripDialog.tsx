@@ -33,14 +33,20 @@ export function DeleteTripDialog({ trip, children, onTripDeleted }: DeleteTripDi
   const { toast } = useToast();
   const router = useRouter();
 
-  console.log('DeleteTripDialog - trip:', trip.title, 'ownerId:', trip.ownerId, 'user.uid:', user?.uid);
-
+  // Check if this is an onboarding trip (sample trips created for new users)
+  const isOnboardingTrip = ['Asia Trip 2025', 'European Adventure', 'South America Discovery'].includes(trip.title);
+  
   const isOwner = trip.ownerId === user?.uid;
   const isEditor = trip.editors?.includes(user?.uid || '');
   const isViewer = trip.viewers?.includes(user?.uid || '');
+  
+  // Allow deletion if user is owner OR if it's an onboarding trip
+  const canDelete = isOwner || isOnboardingTrip;
+  
+  console.log('DeleteTripDialog - trip:', trip.title, 'ownerId:', trip.ownerId, 'user.uid:', user?.uid, 'isOnboardingTrip:', isOnboardingTrip, 'canDelete:', canDelete);
 
   const getActionText = () => {
-    if (isOwner) {
+    if (isOwner || isOnboardingTrip) {
       return 'Delete Trip';
     } else if (isEditor || isViewer) {
       return 'Leave Trip';
@@ -49,8 +55,9 @@ export function DeleteTripDialog({ trip, children, onTripDeleted }: DeleteTripDi
   };
 
   const getDescription = () => {
-    if (isOwner) {
-      return `Are you sure you want to delete "${trip.title}"? This action cannot be undone and will permanently remove the trip for all collaborators.`;
+    if (isOwner || isOnboardingTrip) {
+      const onboardingMessage = isOnboardingTrip ? ' This is a sample trip created to help you get started.' : '';
+      return `Are you sure you want to delete "${trip.title}"? This action cannot be undone and will permanently remove the trip for all collaborators.${onboardingMessage}`;
     } else if (isEditor || isViewer) {
       return `Are you sure you want to leave "${trip.title}"? You will no longer have access to this trip, but it will remain available to other collaborators.`;
     }
@@ -58,7 +65,7 @@ export function DeleteTripDialog({ trip, children, onTripDeleted }: DeleteTripDi
   };
 
   const getConfirmationText = () => {
-    if (isOwner) {
+    if (isOwner || isOnboardingTrip) {
       return 'DELETE TRIP';
     } else if (isEditor || isViewer) {
       return 'LEAVE TRIP';
@@ -81,8 +88,8 @@ export function DeleteTripDialog({ trip, children, onTripDeleted }: DeleteTripDi
 
     setIsLoading(true);
     try {
-      if (isOwner) {
-        // Owner: Delete the entire trip
+      if (isOwner || isOnboardingTrip) {
+        // Owner or onboarding trip: Delete the entire trip
         await deleteTrip(trip.id!);
         toast({
           title: "Trip Deleted",
@@ -162,7 +169,12 @@ export function DeleteTripDialog({ trip, children, onTripDeleted }: DeleteTripDi
               
               {/* Permission Badge */}
               <div className="flex items-center gap-2">
-                {isOwner ? (
+                {isOnboardingTrip ? (
+                  <Badge variant="default" className="bg-orange-600">
+                    <User className="h-3 w-3 mr-1" />
+                    Sample Trip
+                  </Badge>
+                ) : isOwner ? (
                   <Badge variant="default" className="bg-blue-600">
                     <User className="h-3 w-3 mr-1" />
                     Owner
@@ -180,10 +192,10 @@ export function DeleteTripDialog({ trip, children, onTripDeleted }: DeleteTripDi
                 )}
               </div>
 
-              {/* Warning for Owner */}
-              {isOwner && (
+              {/* Warning for Owner or Onboarding Trip */}
+              {(isOwner || isOnboardingTrip) && (
                 <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                  <strong>Warning:</strong> This will permanently delete the trip for all {trip.editors?.length || 0 + trip.viewers?.length || 0} collaborators.
+                  <strong>Warning:</strong> This will permanently delete the trip{isOnboardingTrip ? ' (sample trip)' : ''} for all {trip.editors?.length || 0 + trip.viewers?.length || 0} collaborators.
                 </div>
               )}
             </CardContent>
