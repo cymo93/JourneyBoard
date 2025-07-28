@@ -371,7 +371,7 @@ export default function MyTripsPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex justify-between items-center">
-          {/* Updated trip cards with proper layout and information - Ready for new API key */}
+          {/* Updated trip cards with proper layout and information - Ready for new API key - Force redeploy */}
           <h1 className="text-3xl font-bold text-gray-900 font-headline">My Trips</h1>
           <Dialog open={isDialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
