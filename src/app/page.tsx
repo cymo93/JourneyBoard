@@ -464,7 +464,9 @@ export default function MyTripsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {trips.filter(trip => trip.id).map((trip) => (
+            {trips.filter(trip => trip.id).map((trip) => {
+              console.log('Rendering trip:', trip.title, 'ownerId:', trip.ownerId, 'user.uid:', user?.uid, 'isOwner:', trip.ownerId === user?.uid);
+              return (
               <Link href={`/trips/${trip.id!}`} key={trip.id!} className="block">
               <Card className="group overflow-hidden rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col h-full">
                 <div className="relative h-48">
@@ -588,7 +590,8 @@ export default function MyTripsPage() {
                 </CardFooter>
               </Card>
             </Link>
-          ))}
+            );
+            })}
           </div>
         )}
       </main>

@@ -33,6 +33,8 @@ export function DeleteTripDialog({ trip, children, onTripDeleted }: DeleteTripDi
   const { toast } = useToast();
   const router = useRouter();
 
+  console.log('DeleteTripDialog - trip:', trip.title, 'ownerId:', trip.ownerId, 'user.uid:', user?.uid);
+
   const isOwner = trip.ownerId === user?.uid;
   const isEditor = trip.editors?.includes(user?.uid || '');
   const isViewer = trip.viewers?.includes(user?.uid || '');
@@ -123,7 +125,10 @@ export function DeleteTripDialog({ trip, children, onTripDeleted }: DeleteTripDi
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      console.log('DeleteTripDialog onOpenChange:', open);
+      setIsOpen(open);
+    }}>
       <DialogTrigger asChild>
         {children}
       </DialogTrigger>
