@@ -514,9 +514,9 @@ export default function MyTripsPage() {
                           </TooltipContent>
                         </Tooltip>
                       </ShareTripDialog>
-                      <DeleteTripDialog trip={trip} onTripDeleted={loadTrips}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DeleteTripDialog trip={trip} onTripDeleted={loadTrips}>
                             <Button 
                               variant="ghost" 
                               size="icon" 
@@ -528,12 +528,12 @@ export default function MyTripsPage() {
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Delete trip</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </DeleteTripDialog>
+                          </DeleteTripDialog>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Delete trip</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
 
                     <CardHeader className="absolute bottom-0 left-0 right-0 text-white p-4">
