@@ -50,7 +50,7 @@ export function TripImage({
   const imageAlt = shouldUseDefault ? defaultImage.alt : alt;
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative overflow-hidden ${className}`}>
       {/* Loading state */}
       {isLoading && !imageError && !isPlaceholder && (
         <div className="absolute inset-0 bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse flex items-center justify-center z-10">
@@ -75,7 +75,7 @@ export function TripImage({
         alt={imageAlt}
         width={width}
         height={height}
-        className={`transition-opacity duration-300 ${(isLoading && !imageError && !isPlaceholder) ? 'opacity-0' : 'opacity-100'}`}
+        className={`transition-opacity duration-300 w-full h-full object-cover ${(isLoading && !imageError && !isPlaceholder) ? 'opacity-0' : 'opacity-100'}`}
         onError={handleImageError}
         onLoad={handleImageLoad}
         priority={priority}

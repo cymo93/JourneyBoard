@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, MapPin, Plus, RotateCw, Users, Share2, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Plus, RotateCw, Users, Share2, Trash2, Clock } from 'lucide-react';
 import { getPexelsImage, getNewPexelsImage } from './actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
@@ -466,7 +466,7 @@ export default function MyTripsPage() {
             {trips.filter(trip => trip.id).map((trip) => (
               <Link href={`/trips/${trip.id!}`} key={trip.id!} className="block">
               <Card className="group overflow-hidden rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col h-full">
-                <div className="relative">
+                <div className="relative h-48">
                     <TripImage
                       src={trip.imageUrl}
                       alt={trip.title}
@@ -474,7 +474,7 @@ export default function MyTripsPage() {
                       locations={trip.locations}
                       width={600}
                       height={400}
-                      className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                     <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -535,21 +535,33 @@ export default function MyTripsPage() {
                       </DeleteTripDialog>
                     </div>
 
-                    <CardHeader className="absolute bottom-0 text-white">
+                    <CardHeader className="absolute bottom-0 left-0 right-0 text-white p-4">
                       <CardTitle className="text-2xl font-bold">{trip.title}</CardTitle>
                     </CardHeader>
                 </div>
-                <CardContent className="p-4 flex-grow">
+                <CardContent className="p-6 pt-4 flex-grow">
                   <div className="flex items-center text-sm text-gray-500 mb-3">
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     <span>{format(new Date(trip.startDate), 'MMM d, yyyy')} - {format(new Date(trip.endDate), 'MMM d, yyyy')}</span>
                   </div>
-                  <div className="flex items-center text-sm text-gray-500">
+                  <div className="flex items-center text-sm text-gray-500 mb-3">
                     <MapPin className="mr-2 h-4 w-4" />
                     <span className="truncate">{trip.locations.join(', ')}</span>
                   </div>
+                  <div className="flex items-center text-sm text-gray-500">
+                    <Clock className="mr-2 h-4 w-4" />
+                    <span>
+                      {(() => {
+                        const start = new Date(trip.startDate);
+                        const end = new Date(trip.endDate);
+                        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                        const nights = days - 1;
+                        return `${days} day${days === 1 ? '' : 's'} / ${nights} night${nights === 1 ? '' : 's'}`;
+                      })()}
+                    </span>
+                  </div>
                 </CardContent>
-                <CardFooter className="p-4 bg-gray-50 border-t">
+                <CardFooter className="p-6 bg-gray-50 border-t">
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center text-sm text-gray-500">
                         <Users className="mr-2 h-4 w-4" />
