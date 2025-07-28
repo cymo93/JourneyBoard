@@ -22,7 +22,7 @@ import { ShareTripDialog } from '@/components/ShareTripDialog';
 import { PendingInvitations } from '@/components/PendingInvitations';
 import { DeleteTripDialog } from '@/components/DeleteTripDialog';
 import { TripImage } from '@/components/TripImage';
-import { getDefaultImage } from '@/lib/defaultImages';
+
 import { useToast } from '@/hooks/use-toast';
 
 const initialTrips = [
@@ -32,8 +32,8 @@ const initialTrips = [
     startDate: '2025-12-03',
     endDate: '2025-12-08',
     locations: ['Hong Kong', 'Vancouver'],
-    imageUrl: getDefaultImage('Asia Trip 2025', ['Hong Kong', 'Vancouver']).url,
-    imageHint: getDefaultImage('Asia Trip 2025', ['Hong Kong', 'Vancouver']).hint,
+    imageUrl: '', // Will be set by TripImage component
+    imageHint: 'asia landscape',
     tripData: {
       locations: [
         { id: 'loc1', name: 'Hong Kong', dateBlocks: [{ id: 'date1', date: '2025-12-03T00:00:00.000Z' }, { id: 'date2', date: '2025-12-04T00:00:00.000Z' }] },
@@ -47,8 +47,8 @@ const initialTrips = [
     startDate: '2026-06-15',
     endDate: '2026-06-28',
     locations: ['Paris', 'Rome', 'Barcelona'],
-    imageUrl: getDefaultImage('European Adventure', ['Paris', 'Rome', 'Barcelona']).url,
-    imageHint: getDefaultImage('European Adventure', ['Paris', 'Rome', 'Barcelona']).hint,
+              imageUrl: '', // Will be set by TripImage component
+          imageHint: 'europe landscape',
     tripData: {
       locations: [
         { id: 'loc3', name: 'Paris', dateBlocks: [{ id: 'date8', date: '2026-06-15T00:00:00.000Z' }] },
@@ -63,8 +63,8 @@ const initialTrips = [
     startDate: '2026-09-01',
     endDate: '2026-09-21',
     locations: ['Peru', 'Brazil', 'Argentina'],
-    imageUrl: getDefaultImage('South America Discovery', ['Peru', 'Brazil', 'Argentina']).url,
-    imageHint: getDefaultImage('South America Discovery', ['Peru', 'Brazil', 'Argentina']).hint,
+    imageUrl: '', // Will be set by TripImage component
+    imageHint: 'south america landscape',
     tripData: {
        locations: [
         { id: 'loc6', name: 'Peru', dateBlocks: [{ id: 'date11', date: '2026-09-01T00:00:00.000Z' }] },
@@ -187,8 +187,8 @@ export default function MyTripsPage() {
           startDate: '2025-12-03',
           endDate: '2025-12-08',
           locations: ['Hong Kong', 'Vancouver'],
-          imageUrl: getDefaultImage('Asia Trip 2025', ['Hong Kong', 'Vancouver']).url,
-          imageHint: getDefaultImage('Asia Trip 2025', ['Hong Kong', 'Vancouver']).hint,
+          imageUrl: '', // Will be set by TripImage component
+          imageHint: 'asia landscape',
           tripData: {
             locations: [
               { 
@@ -221,8 +221,8 @@ export default function MyTripsPage() {
           startDate: '2026-06-15',
           endDate: '2026-06-28',
           locations: ['Paris', 'Rome', 'Barcelona'],
-          imageUrl: getDefaultImage('European Adventure', ['Paris', 'Rome', 'Barcelona']).url,
-          imageHint: getDefaultImage('European Adventure', ['Paris', 'Rome', 'Barcelona']).hint,
+          imageUrl: '', // Will be set by TripImage component
+          imageHint: 'europe landscape',
           tripData: {
             locations: [
               { id: 'loc3', name: 'Paris', dateBlocks: [{ id: 'date8', date: '2026-06-15T00:00:00.000Z', activities: [] }] },
@@ -268,8 +268,8 @@ export default function MyTripsPage() {
           startDate: format(newTripStartDate, 'yyyy-MM-dd'),
           endDate: format(newTripStartDate, 'yyyy-MM-dd'),
           locations: ['New Location'],
-          imageUrl: getDefaultImage(newTripTitle, ['New Location']).url,
-          imageHint: getDefaultImage(newTripTitle, ['New Location']).hint,
+          imageUrl: '', // Will be set by TripImage component
+          imageHint: 'new trip landscape',
           tripData: {
             locations: [
               {

@@ -38,12 +38,16 @@ export function TripImage({
     setIsLoading(false);
   };
 
-  // If the original image failed, use a default image based on trip content
-  const imageSrc = imageError ? getDefaultImage(title, locations).url : src;
-  const imageAlt = imageError ? getDefaultImage(title, locations).alt : alt;
-  
   // Check if the image URL is a placeholder or invalid
   const isPlaceholder = src.includes('placehold.co') || src.includes('600 × 400') || !src || src === '';
+  
+  // Get default image if needed
+  const defaultImage = getDefaultImage(title, locations);
+  
+  // Use default image if error, placeholder, or empty src, otherwise use original
+  const shouldUseDefault = imageError || isPlaceholder || !src || src === '';
+  const imageSrc = shouldUseDefault ? defaultImage.url : src;
+  const imageAlt = shouldUseDefault ? defaultImage.alt : alt;
 
   return (
     <div className={`relative ${className}`}>

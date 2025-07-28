@@ -1,132 +1,126 @@
-// Beautiful default travel images from Pexels
-// These are high-quality, free-to-use images that represent different travel themes
+// Simple default image system with intelligent theme selection
+// This avoids complex async operations that cause TypeScript issues
 
-export const defaultImages = {
-  // General travel themes
-  general: {
-    url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'travel landscape mountains',
-    alt: 'Beautiful mountain landscape'
-  },
-  
+// Theme categories for intelligent image selection
+export const imageThemes = {
   // Regional themes
   asia: {
+    keywords: ['asia', 'china', 'japan', 'thailand', 'vietnam', 'singapore', 'korea', 'taiwan'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'asia temple mountains',
     alt: 'Asian temple and mountains'
   },
   
   europe: {
+    keywords: ['europe', 'paris', 'rome', 'barcelona', 'london', 'amsterdam', 'berlin', 'prague', 'vienna'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'europe architecture city',
     alt: 'European architecture'
   },
   
   america: {
+    keywords: ['america', 'usa', 'canada', 'mexico', 'new york', 'los angeles', 'toronto', 'vancouver'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'america landscape nature',
     alt: 'American landscape'
   },
   
   africa: {
+    keywords: ['africa', 'safari', 'kenya', 'south africa', 'morocco', 'egypt', 'tanzania'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'africa safari wildlife',
     alt: 'African safari'
   },
   
   australia: {
+    keywords: ['australia', 'sydney', 'melbourne', 'brisbane', 'perth'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'australia beach ocean',
     alt: 'Australian beach'
   },
   
-  // City themes
-  city: {
-    url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'city skyline urban',
-    alt: 'City skyline'
-  },
-  
+  // Landscape themes
   beach: {
+    keywords: ['beach', 'ocean', 'coast', 'island', 'tropical', 'paradise'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'beach ocean sunset',
     alt: 'Beach sunset'
   },
   
   mountains: {
+    keywords: ['mountain', 'hiking', 'climbing', 'alpine', 'snow', 'peak'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'mountains landscape nature',
     alt: 'Mountain landscape'
   },
   
   forest: {
+    keywords: ['forest', 'jungle', 'nature', 'woods', 'trees', 'wilderness'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'forest trees nature',
     alt: 'Forest landscape'
   },
   
   desert: {
+    keywords: ['desert', 'sahara', 'dunes', 'arid', 'canyon'],
     url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    hint: 'desert sand dunes',
     alt: 'Desert landscape'
+  },
+  
+  city: {
+    keywords: ['city', 'urban', 'downtown', 'metropolitan', 'skyline'],
+    url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    alt: 'City skyline'
+  },
+  
+  // General travel
+  general: {
+    keywords: ['travel', 'adventure', 'explore', 'journey'],
+    url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    alt: 'Beautiful travel landscape'
   }
 };
 
-// Function to get appropriate default image based on trip title or locations
-export const getDefaultImage = (tripTitle: string, locations: string[] = []): { url: string; hint: string; alt: string } => {
+// Function to determine the best theme based on trip title and locations
+export const getThemeForTrip = (tripTitle: string, locations: string[] = []): string => {
   const title = tripTitle.toLowerCase();
   const locationString = locations.join(' ').toLowerCase();
   const combined = `${title} ${locationString}`;
   
-  // Check for regional keywords
-  if (combined.includes('asia') || combined.includes('china') || combined.includes('japan') || combined.includes('thailand') || combined.includes('vietnam')) {
-    return defaultImages.asia;
+  // Check each theme's keywords
+  for (const [themeName, theme] of Object.entries(imageThemes)) {
+    if (theme.keywords.some(keyword => combined.includes(keyword))) {
+      return themeName;
+    }
   }
   
-  if (combined.includes('europe') || combined.includes('paris') || combined.includes('rome') || combined.includes('barcelona') || combined.includes('london')) {
-    return defaultImages.europe;
-  }
-  
-  if (combined.includes('america') || combined.includes('usa') || combined.includes('canada') || combined.includes('mexico')) {
-    return defaultImages.america;
-  }
-  
-  if (combined.includes('africa') || combined.includes('safari') || combined.includes('kenya') || combined.includes('south africa')) {
-    return defaultImages.africa;
-  }
-  
-  if (combined.includes('australia') || combined.includes('sydney') || combined.includes('melbourne')) {
-    return defaultImages.australia;
-  }
-  
-  // Check for specific themes
-  if (combined.includes('beach') || combined.includes('ocean') || combined.includes('coast')) {
-    return defaultImages.beach;
-  }
-  
-  if (combined.includes('mountain') || combined.includes('hiking') || combined.includes('climbing')) {
-    return defaultImages.mountains;
-  }
-  
-  if (combined.includes('forest') || combined.includes('jungle') || combined.includes('nature')) {
-    return defaultImages.forest;
-  }
-  
-  if (combined.includes('desert') || combined.includes('sahara')) {
-    return defaultImages.desert;
-  }
-  
-  if (combined.includes('city') || combined.includes('urban') || combined.includes('downtown')) {
-    return defaultImages.city;
-  }
-  
-  // Default to general travel image
-  return defaultImages.general;
+  // Default to general if no specific theme matches
+  return 'general';
 };
 
-// Function to get a random default image for variety
-export const getRandomDefaultImage = (): { url: string; hint: string; alt: string } => {
-  const images = Object.values(defaultImages);
-  const randomIndex = Math.floor(Math.random() * images.length);
-  return images[randomIndex];
+// Main function to get default image (synchronous)
+export const getDefaultImage = (tripTitle: string, locations: string[] = []): { url: string; alt: string; photographerUrl: string } => {
+  try {
+    const theme = getThemeForTrip(tripTitle, locations);
+    const themeConfig = imageThemes[theme as keyof typeof imageThemes];
+    
+    return {
+      url: themeConfig.url,
+      alt: themeConfig.alt,
+      photographerUrl: 'https://pexels.com'
+    };
+  } catch (error) {
+    console.error('Error getting default image:', error);
+    // Ultimate fallback
+    return {
+      url: 'https://images.pexels.com/photos/3155666/pexels-photo-3155666.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+      alt: 'Beautiful travel landscape',
+      photographerUrl: 'https://pexels.com'
+    };
+  }
+};
+
+// Function to get a random default image
+export const getRandomDefaultImage = (): { url: string; alt: string; photographerUrl: string } => {
+  const themes = Object.values(imageThemes);
+  const randomIndex = Math.floor(Math.random() * themes.length);
+  const theme = themes[randomIndex];
+  
+  return {
+    url: theme.url,
+    alt: theme.alt,
+    photographerUrl: 'https://pexels.com'
+  };
 }; 
