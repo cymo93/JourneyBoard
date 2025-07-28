@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { AuthForm } from './AuthForm';
 import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
+import Link from 'next/link';
 
 interface AuthWrapperProps {
   children: React.ReactNode;
@@ -30,7 +31,9 @@ export const AuthWrapper = ({ children }: AuthWrapperProps) => {
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <h1 className="text-xl font-semibold text-gray-900">JourneyBoard</h1>
+            <Link href="/" className="text-xl font-semibold text-gray-900 hover:text-blue-600 transition-colors">
+              JourneyBoard
+            </Link>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
                 Welcome, {user.email}
