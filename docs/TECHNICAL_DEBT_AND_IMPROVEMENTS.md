@@ -15,15 +15,42 @@ This document outlines the current limitations of the JourneyBoard application a
     -   ✅ **Cross-device Access**: Data is now accessible from any device with proper authentication.
     -   ✅ **Production Deployment**: Application is deployed on Vercel with proper environment configuration.
 
+### **Image System & Visual Experience - RESOLVED**
+
+-   **Previous Issue**: Trip cards showed ugly grey placeholders and visual conflicts.
+-   **Solution Implemented**:
+    -   ✅ **Intelligent Default Image System**: Theme-based fallback images with keyword detection.
+    -   ✅ **Pexels API Integration**: Dynamic location banner images with intelligent caching.
+    -   ✅ **Robust Error Handling**: Multiple fallback layers ensure images always display.
+    -   ✅ **Visual Consistency**: No more overlapping elements or placeholder text conflicts.
+
+### **Pexels API Authentication - RESOLVED**
+
+-   **Previous Issue**: 401 Unauthorized errors due to incorrect API key format.
+-   **Solution Implemented**:
+    -   ✅ **Proper Bearer Token**: Updated all API calls to use `Authorization: Bearer YOUR_API_KEY` format.
+    -   ✅ **Server-side Security**: API keys stored securely and never exposed to client.
+    -   ✅ **Diagnostic Tools**: Added "Test Pexels API" button for troubleshooting.
+
 ## 2. Current Minor Issues & Optimizations
+
+### **Image System Limitations**
+
+-   **Default Image Variety**: All themes currently use the same fallback image due to simplified implementation.
+    -   **Impact**: Reduces visual variety but maintains functionality.
+    -   **Improvement Path**: Implement dynamic Pexels fetching for default images with Firestore caching.
+
+-   **Image Caching**: Some images may not cache properly on first load.
+    -   **Impact**: Occasional API calls for already-viewed images.
+    -   **Improvement Path**: Implement more robust caching strategy with cache invalidation.
 
 ### **Performance Optimizations**
 
--   **Image Loading**: While the Pexels integration works well, there could be optimization for image caching and preloading.
-    -   **Improvement Path**: Implement image caching strategies and lazy loading for better performance.
-
 -   **Real-time Updates**: Firestore real-time listeners could be optimized for better performance with large datasets.
     -   **Improvement Path**: Implement pagination and selective listening for better scalability.
+
+-   **Image Loading**: While the Pexels integration works well, there could be optimization for image preloading.
+    -   **Improvement Path**: Implement image preloading strategies for better perceived performance.
 
 ### **User Experience Enhancements**
 
@@ -34,6 +61,18 @@ This document outlines the current limitations of the JourneyBoard application a
     -   **Improvement Path**: Implement offline-first architecture with local caching and sync when online.
 
 ## 3. Potential Future Features & Enhancements
+
+### **Image System Enhancements**
+
+-   **Dynamic Default Images**: 
+    -   Fetch unique Pexels images for each theme instead of using the same fallback.
+    -   Implement intelligent image selection based on trip context.
+    -   Add image rotation to prevent repetition.
+
+-   **Advanced Image Features**:
+    -   User-uploaded trip photos.
+    -   AI-generated trip cover images using Gemini image generation.
+    -   Image editing and cropping tools.
 
 ### **UX/UI Improvements**
 
@@ -63,7 +102,7 @@ This document outlines the current limitations of the JourneyBoard application a
 ### **AI Enhancements**
 
 -   **Real-time AI Suggestions**: Instead of clicking a button, the AI could proactively offer suggestions as a user adds activities.
--   **Image Generation**: Instead of fetching images from Pexels, use a generative image model (like `gemini-2.0-flash-preview-image-generation`) to create a unique cover image for each trip based on its title and locations.
+-   **Image Generation**: Use a generative image model (like `gemini-2.0-flash-preview-image-generation`) to create unique cover images for each trip based on its title and locations.
 -   **Itinerary Optimization**: Create an AI flow that can review a user's entire plan and suggest optimizations (e.g., "The museum you planned for Tuesday is closed that day, I suggest moving it to Wednesday."). This would require the AI to have access to tools that can check real-world data like opening hours.
 -   **Multi-Modal Input**: Allow users to upload a photo of a landmark and have the AI identify it and suggest related activities.
 -   **Smart Recommendations**: AI-powered suggestions for restaurants, attractions, and activities based on user preferences and location.
@@ -97,6 +136,16 @@ This document outlines the current limitations of the JourneyBoard application a
 -   **Advanced Permissions**: More granular permission system for trip sharing.
 -   **Audit Logging**: Track changes and user actions for security purposes.
 
+### **Image System Technical Debt**
+
+-   **Async Default Images**: The current synchronous implementation was chosen to avoid TypeScript conflicts, but limits functionality.
+    -   **Impact**: Cannot dynamically fetch different images for each theme.
+    -   **Improvement Path**: Refactor to use proper async patterns with better error handling.
+
+-   **Image Optimization**: Not using Next.js Image optimization features.
+    -   **Impact**: Larger image file sizes and slower loading.
+    -   **Improvement Path**: Implement proper Next.js Image optimization with responsive sizes.
+
 ## 5. Deployment & Infrastructure
 
 ### **Current Status**: ✅ Production Ready
@@ -104,9 +153,31 @@ This document outlines the current limitations of the JourneyBoard application a
 -   **Vercel Deployment**: Application is successfully deployed and accessible.
 -   **Firebase Configuration**: Production Firebase project with proper security rules.
 -   **Environment Management**: Secure environment variable handling.
+-   **Image Caching**: Firestore-based caching system for Pexels images.
 
 ### **Future Improvements**
 
 -   **CDN Optimization**: Implement CDN for static assets and images.
 -   **Database Optimization**: Implement database indexing strategies for better query performance.
 -   **Monitoring & Alerting**: Set up comprehensive monitoring and alerting systems.
+-   **Image CDN**: Implement specialized image CDN for better performance and caching.
+
+## 6. Known Limitations
+
+### **Pexels API Constraints**
+
+-   **Rate Limiting**: API calls are limited and may fail during high usage.
+-   **Query Specificity**: Some locations may not return relevant images due to generic queries.
+-   **Image Quality**: Dependent on Pexels' available images for specific locations.
+
+### **Firebase Limitations**
+
+-   **Offline Support**: Limited offline functionality without additional implementation.
+-   **Query Complexity**: Some complex queries require composite indexes.
+-   **Cost Considerations**: Firestore usage costs scale with data and query volume.
+
+### **Technical Constraints**
+
+-   **Client-Server Boundaries**: Some features limited by Next.js App Router architecture.
+-   **TypeScript Conflicts**: Async operations between client and server components can be complex.
+-   **Bundle Size**: Image-heavy features may impact initial load times.

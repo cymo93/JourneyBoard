@@ -43,7 +43,7 @@ This document details each feature of the JourneyBoard application, its intended
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ All trips the user has access to are displayed as cards.
     -   ✅ Each trip card displays the trip title, date range, and a beautiful background image.
-    -   ✅ Each trip card has a dynamic background image from Pexels or a curated default image.
+    -   ✅ Each trip card has intelligent theme-based default images when primary images fail.
     -   ✅ The "Create New Trip" dialog successfully adds a new trip to Firestore.
     -   ✅ After creating a trip, the user is redirected to `/trips/[new_trip_id]`.
     -   ✅ Clicking a trip card navigates the user to `/trips/[trip_id]`.
@@ -97,10 +97,12 @@ This document details each feature of the JourneyBoard application, its intended
     8.  An "AI-Powered Suggestions" card appears below. The user can provide additional text input to refine the AI's suggestions.
     9.  The AI generates a day-by-day plan which is displayed in a read-only text area, from which the user can copy text to paste into their daily activity notes.
     10. The user can click the banner image to view the original on Pexels, and the location title to view it on Google Maps.
+    11. The user can click "Test Pexels API" to diagnose API connection issues.
 
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ The page correctly loads and displays data for the specified `locationId`.
     -   ✅ A high-quality banner image from Pexels is fetched and displayed. It shrinks on scroll.
+    -   ✅ Images are cached in Firestore to reduce API calls and improve performance.
     -   ✅ The location title links to Google Maps. The banner image links to Pexels.
     -   ✅ Date cards are displayed chronologically.
     -   ✅ Users can add, edit, and delete activity notes for each day. Changes are saved to Firestore.
@@ -108,6 +110,7 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ The AI suggestion card appears after the button is clicked.
     -   ✅ The AI's response is displayed in the text area. The loading state is clearly indicated.
     -   ✅ The user can type in the input field to refine AI suggestions on subsequent requests.
+    -   ✅ "Test Pexels API" button provides diagnostic information for troubleshooting.
 
 ---
 
@@ -152,29 +155,34 @@ This document details each feature of the JourneyBoard application, its intended
 
 ---
 
-### 7. Enhanced Image System
+### 7. Intelligent Default Image System
 
 -   **Files**: `src/components/TripImage.tsx`, `src/lib/defaultImages.ts`
--   **User Journey**: This is a background feature that enhances the visual experience.
+-   **User Journey**: This is a background feature that enhances the visual experience by providing intelligent fallback images when primary images fail.
 -   **User Acceptance Criteria (UAC)**:
-    -   ✅ Trip cards display beautiful, curated images from Pexels or default travel images.
+    -   ✅ Trip cards display beautiful, theme-appropriate images when primary images fail.
     -   ✅ Images load with smooth animations and proper fallbacks.
-    -   ✅ Location banners show high-quality landscape images.
-    -   ✅ Image selection is intelligent and context-aware.
-    -   ✅ Loading states and error handling work seamlessly.
+    -   ✅ Theme detection works based on trip titles and locations (asia, europe, america, etc.).
+    -   ✅ Loading states show camera icon with pulse animation.
+    -   ✅ Error states show gradient background with location information.
+    -   ✅ No visual conflicts or overlapping elements.
+    -   ✅ Placeholder detection prevents ugly "600 × 400" text displays.
 
 ---
 
-### 8. Pexels Image Integration
+### 8. Pexels API Integration & Caching
 
--   **File**: `src/app/actions.ts`
--   **User Journey**: This is a background feature. The user experiences it through the dynamic images on the "My Trips" and "Location" pages.
+-   **File**: `src/app/actions.ts`, `src/lib/firestore.ts`
+-   **User Journey**: This is a background feature. The user experiences it through the dynamic images on location pages and trip cards.
 -   **User Acceptance Criteria (UAC)**:
     -   ✅ The Pexels API key is stored securely in `.env.local` and is never exposed to the client.
-    -   ✅ Server actions handle all API requests to Pexels.
-    -   ✅ The app fetches different image resolutions (`large` vs. `large2x`) for different contexts (trip card vs. location banner) to optimize performance.
-    -   ✅ The "refresh" functionality fetches a new, random image to avoid repetition.
-    -   ✅ The Next.js image config in `next.config.ts` is correctly configured to allow the `images.pexels.com` domain.
+    -   ✅ Server actions handle all API requests to Pexels with proper Bearer token authentication.
+    -   ✅ Location banner images are fetched with intelligent queries (e.g., "Vancouver iconic landscape").
+    -   ✅ Images are cached in Firestore `locationImages` collection to reduce API calls.
+    -   ✅ Cache includes image URL, alt text, photographer attribution, and timestamp.
+    -   ✅ Comprehensive error handling with fallback mechanisms.
+    -   ✅ "Test Pexels API" function provides diagnostic capabilities.
+    -   ✅ The Next.js image config allows the `images.pexels.com` domain.
 
 ---
 
@@ -188,3 +196,32 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ The prompt instructs the AI to consider the trip's pacing (e.g., energy levels at the start vs. end of the trip).
     -   ✅ The AI's output is formatted as a simple, day-by-day text list as specified in the prompt.
     -   ✅ The flow successfully returns the generated text to the client-side component.
+
+---
+
+### 10. Error Handling & User Experience
+
+-   **Files**: Throughout the application
+-   **User Journey**: Users encounter various error states and edge cases during normal usage.
+-   **User Acceptance Criteria (UAC)**:
+    -   ✅ API failures show appropriate error messages with retry options.
+    -   ✅ Network issues don't crash the application.
+    -   ✅ Loading states are clearly indicated for all async operations.
+    -   ✅ Empty states provide helpful guidance for new users.
+    -   ✅ Form validation prevents invalid data submission.
+    -   ✅ Toast notifications provide feedback for user actions.
+    -   ✅ Graceful degradation when external services are unavailable.
+
+---
+
+### 11. Performance & Optimization
+
+-   **Files**: Throughout the application
+-   **User Journey**: Users expect fast, responsive interactions regardless of their device or connection.
+-   **User Acceptance Criteria (UAC)**:
+    -   ✅ Images load quickly with proper optimization.
+    -   ✅ API calls are minimized through intelligent caching.
+    -   ✅ Real-time updates don't cause performance issues.
+    -   ✅ The application works well on both desktop and mobile devices.
+    -   ✅ Large datasets don't cause UI lag or freezing.
+    -   ✅ Offline functionality preserves user data and state.
