@@ -1,24 +1,28 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { ChevronLeft, Sparkles, Loader2 } from 'lucide-react';
+import { ChevronLeft, Sparkles, Loader2, MapPin, Plus, Trash2, Edit3, Check, X, Wifi, WifiOff } from 'lucide-react';
 import Image from 'next/image';
 import { getPexelsImageForLocationPage } from '@/app/actions';
 import { suggestActivities, type SuggestActivitiesInput } from '@/ai/flows/suggestActivitiesFlow';
 import { Input } from '@/components/ui/input';
-import { getTrip, updateTrip, Trip as FirestoreTrip, getCachedLocationImage, cacheLocationImage } from '@/lib/firestore';
+import { getTrip, updateTrip, Trip as FirestoreTrip, getCachedLocationImage, cacheLocationImage, subscribeToTripUpdates } from '@/lib/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { LinkParser } from '@/components/LinkParser';
+import { QuickLinkHelper } from '@/components/QuickLinkHelper';
 
 type Activity = {
   id: string;
   notes: string;
+  type: 'text' | 'link' | 'checklist';
+  completed?: boolean;
 };
 
 type DateBlock = {
@@ -43,15 +47,34 @@ type Trip = {
   };
 };
 
-const deepCopyAndParseDates = (locationToCopy: Location): Location => {
-    const newLocation = JSON.parse(JSON.stringify(locationToCopy));
-    return {
-        ...newLocation,
-        dateBlocks: newLocation.dateBlocks.map((db: any) => ({
-            ...db,
-            date: new Date(db.date)
-        }))
-    };
+const deepCopyAndParseDates = (locationsToCopy: any[]): Location[] => {
+  return locationsToCopy.map((loc: any) => ({
+    ...loc,
+    dateBlocks: loc.dateBlocks.map((db: any) => ({
+      ...db,
+      date: new Date(db.date),
+      activities: db.activities?.map((act: any) => ({
+        ...act,
+        type: act.type || 'text',
+        completed: act.completed || false
+      })) || []
+    }))
+  }));
+};
+
+const deepCopyAndParseDatesSingle = (locationToCopy: any): Location => {
+  return {
+    ...locationToCopy,
+    dateBlocks: locationToCopy.dateBlocks.map((db: any) => ({
+      ...db,
+      date: new Date(db.date),
+      activities: db.activities?.map((act: any) => ({
+        ...act,
+        type: act.type || 'text',
+        completed: act.completed || false
+      })) || []
+    }))
+  };
 };
 
 export default function LocationPage() {
@@ -60,7 +83,6 @@ export default function LocationPage() {
   const { toast } = useToast();
   const [trip, setTrip] = useState<Trip | null>(null);
   const [location, setLocation] = useState<Location | null>(null);
-  const [maxActivities, setMaxActivities] = useState(0);
   const [banner, setBanner] = useState<{url: string, alt: string, photographerUrl: string} | null>(null);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,153 +92,225 @@ export default function LocationPage() {
   const [userPrompt, setUserPrompt] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // New state for modern note-taking
+  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+
+  // Real-time collaboration state
+  const [isCollaborating, setIsCollaborating] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const [collaborationStatus, setCollaborationStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (tripId && locationId) {
+    if (tripId && locationId && !Array.isArray(tripId) && !Array.isArray(locationId)) {
+      setupRealTimeCollaboration();
+      
+      // Safety timeout to ensure loading state is cleared
+      const loadingTimeout = setTimeout(() => {
+        console.log('⏰ Loading timeout - forcing isLoading to false');
+        setIsLoading(false);
+        if (!location) {
+          console.log('🔄 No location loaded after timeout, trying fallback');
+          loadLocation();
+        }
+      }, 8000); // 8 second timeout
+      
+      return () => {
+        clearTimeout(loadingTimeout);
+        if (unsubscribeRef.current) {
+          console.log('🔴 Cleaning up real-time listener for location:', locationId);
+          unsubscribeRef.current();
+          unsubscribeRef.current = null;
+        }
+      };
+    }
+    
+    // Cleanup real-time listener on unmount
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log('🔴 Cleaning up real-time listener for location:', locationId);
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, [tripId, locationId]); // Note: location is not included to avoid infinite loops
+
+  const setupRealTimeCollaboration = () => {
+    if (!tripId || !locationId || Array.isArray(tripId) || Array.isArray(locationId)) return;
+    
+    console.log('🔴 Setting up real-time collaboration for location:', locationId);
+    setCollaborationStatus('connecting');
+    
+    try {
+      // Set up real-time listener for the trip
+      const unsubscribe = subscribeToTripUpdates(
+        tripId,
+        (updatedTrip) => {
+          if (updatedTrip) {
+            console.log('🟢 Real-time update received for trip:', updatedTrip.title);
+            setCollaborationStatus('connected');
+            setIsCollaborating(true);
+            setLastUpdateTime(new Date());
+            
+            // Process the updated trip data
+            const parsedLocations = updatedTrip.tripData?.locations ? deepCopyAndParseDates(updatedTrip.tripData.locations) : [];
+            const foundLocation = parsedLocations.find((loc: Location) => loc.id === locationId);
+            
+            if (foundLocation) {
+              setLocation(foundLocation);
+              setTrip(updatedTrip as any);
+              
+              // Clear loading state when real-time data arrives
+              setIsLoading(false);
+              
+              // Show collaboration notification
+              if (lastUpdateTime && updatedTrip.updatedAt) {
+                const lastUpdate = updatedTrip.updatedAt.toDate ? updatedTrip.updatedAt.toDate() : new Date(updatedTrip.updatedAt);
+                if (lastUpdate > lastUpdateTime) {
+                  toast({
+                    title: "Collaboration Update",
+                    description: "Location has been updated by another user",
+                  });
+                }
+              }
+            } else {
+              console.log('❌ Location not found in real-time update, falling back to regular loading');
+              setCollaborationStatus('disconnected');
+              setIsCollaborating(false);
+              loadLocation();
+            }
+          } else {
+            console.log('🔴 Trip not found in real-time listener, falling back to regular loading');
+            setCollaborationStatus('disconnected');
+            setIsCollaborating(false);
+            loadLocation();
+          }
+        },
+        (error) => {
+          console.error('❌ Real-time collaboration error:', error);
+          setCollaborationStatus('disconnected');
+          setIsCollaborating(false);
+          toast({
+            title: "Collaboration Error",
+            description: "Lost connection to real-time updates, loading location data...",
+            variant: "destructive",
+          });
+          // Fallback to regular loading when real-time fails
+          loadLocation();
+        }
+      );
+      
+      unsubscribeRef.current = unsubscribe;
+      console.log('✅ Real-time collaboration setup complete for location');
+      
+    } catch (error) {
+      console.error('❌ Failed to setup real-time collaboration:', error);
+      setCollaborationStatus('disconnected');
+      setIsCollaborating(false);
+      // Fallback to regular loading
       loadLocation();
     }
-  }, [tripId, locationId]);
+  };
 
   const loadLocation = async () => {
+    if (!tripId || !locationId || Array.isArray(tripId) || Array.isArray(locationId)) {
+      console.log('❌ Invalid tripId or locationId, clearing loading state');
+      setIsLoading(false);
+      return;
+    }
+    
     try {
+      console.log('🔄 Loading location fallback for:', { tripId, locationId });
       setIsLoading(true);
-      const firestoreTrip = await getTrip(tripId as string);
+      const firestoreTrip = await getTrip(tripId);
       
       if (firestoreTrip) {
-        const currentLocation = firestoreTrip.tripData.locations.find(l => l.id === locationId);
-        if (currentLocation) {
-          const parsedLocation = {
-            ...currentLocation,
-            dateBlocks: currentLocation.dateBlocks.map(db => ({
-              ...db,
-              date: new Date(db.date),
-              activities: (db.activities || []).map((activity: any) => 
-                typeof activity === 'string' 
-                  ? { id: crypto.randomUUID(), notes: activity }
-                  : activity
-              )
-            }))
-          };
-          setLocation(parsedLocation);
-        }
+        console.log('✅ Trip found, processing locations');
+        const parsedLocations = firestoreTrip.tripData?.locations ? deepCopyAndParseDates(firestoreTrip.tripData.locations) : [];
+        const foundLocation = parsedLocations.find((loc: Location) => loc.id === locationId);
         
-        const localTrip: Trip = {
-          id: firestoreTrip.id!,
-          title: firestoreTrip.title,
-          startDate: firestoreTrip.startDate,
-          endDate: firestoreTrip.endDate,
-          tripData: { locations: [] } // We don't need all locations here
-        };
-        setTrip(localTrip);
+        if (foundLocation) {
+          console.log('✅ Location found:', foundLocation.name);
+          setLocation(foundLocation);
+          setTrip(firestoreTrip as any);
+          
+          // Load banner image
+          const cachedImage = await getCachedLocationImage(foundLocation.name);
+          if (cachedImage) {
+            setBanner({
+              url: cachedImage.imageUrl,
+              alt: cachedImage.alt,
+              photographerUrl: cachedImage.photographerUrl
+            });
+          } else {
+            const bannerImage = await getPexelsImageForLocationPage(foundLocation.name);
+            if (bannerImage) {
+              setBanner(bannerImage);
+              await cacheLocationImage(foundLocation.name, {
+                url: bannerImage.url,
+                alt: bannerImage.alt,
+                photographerUrl: bannerImage.photographerUrl
+              });
+            }
+          }
+        } else {
+          console.log('❌ Location not found in trip');
+          toast({
+            title: "Location Not Found",
+            description: "This location doesn't exist in the trip.",
+            variant: "destructive",
+          });
+        }
       } else {
+        console.log('❌ Trip not found');
         toast({
-          title: "Error",
-          description: "Trip not found.",
+          title: "Trip Not Found",
+          description: "This trip doesn't exist or you don't have access to it.",
           variant: "destructive",
         });
       }
     } catch (error) {
-      console.error('Error loading location:', error);
+      console.error('❌ Error loading location:', error);
       toast({
         title: "Error",
         description: "Failed to load location. Please try again.",
         variant: "destructive",
       });
     } finally {
+      console.log('🔄 Clearing loading state in loadLocation finally block');
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (location?.name) {
-      loadBannerImage(location.name);
-    }
-  }, [location?.name]);
-
-  const loadBannerImage = async (locationName: string) => {
+  const updateFirestore = async (newLocation: Location) => {
+    if (!trip) return;
+    
     try {
-      console.log('Loading banner for location:', locationName);
+      const newTrip = deepCopyAndParseDates(trip.tripData.locations);
+      const locationIndex = newTrip.findIndex((loc: Location) => loc.id === locationId);
       
-      // First, try to get cached image
-      const cachedImage = await getCachedLocationImage(locationName);
-      if (cachedImage) {
-        console.log('Using cached image for:', locationName);
-        setBanner({
-          url: cachedImage.imageUrl,
-          alt: cachedImage.alt,
-          photographerUrl: cachedImage.photographerUrl
-        });
-        return;
-      }
-      
-      // If no cached image, fetch from Pexels using API route
-      console.log('Fetching new image from Pexels for:', locationName);
-      const response = await fetch(`/api/pexels-banner?query=${encodeURIComponent(`${locationName} iconic landscape`)}`);
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        console.log('Banner loaded from Pexels:', result.data);
-        setBanner(result.data);
+      if (locationIndex !== -1) {
+        newTrip[locationIndex] = newLocation;
         
-        // Cache the image for future use
-        await cacheLocationImage(locationName, {
-          url: result.data.url,
-          alt: result.data.alt,
-          photographerUrl: result.data.photographerUrl
-        });
-      } else {
-        console.log('No banner data received from Pexels, using fallback');
-        setBanner(null);
+        // Convert Date objects back to strings for Firestore
+        const firestoreLocations = newTrip.map(loc => ({
+          ...loc,
+          dateBlocks: loc.dateBlocks.map(db => ({
+            ...db,
+            date: db.date.toISOString(),
+            activities: db.activities.map(act => ({
+              ...act,
+              type: act.type || 'text',
+              completed: act.completed || false
+            }))
+          }))
+        }));
+        
+        await updateTrip(trip.id!, { tripData: { locations: firestoreLocations } });
       }
     } catch (error) {
-      console.error('Error loading banner:', error);
-      setBanner(null);
-    }
-  };
-  
-  useEffect(() => {
-    if (location) {
-      const max = Math.max(...location.dateBlocks.map(db => db.activities.length), 0);
-      setMaxActivities(max);
-    }
-  }, [location]);
-
-  useEffect(() => {
-    const handleScroll = () => {
-        setIsScrolled(window.scrollY > 0);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  const updateFirestore = async (newLocationData: Location | null) => {
-    if (!newLocationData || !trip) return;
-
-    try {
-      const firestoreTrip = await getTrip(trip.id);
-      if (firestoreTrip) {
-        const updatedLocations = firestoreTrip.tripData.locations.map(loc => {
-          if (loc.id === locationId) {
-            return {
-              ...loc,
-              dateBlocks: newLocationData.dateBlocks.map(db => ({
-                ...db,
-                date: db.date.toISOString(),
-                activities: db.activities.map(activity => activity.notes)
-              }))
-            };
-          }
-          return loc;
-        });
-
-        await updateTrip(trip.id, {
-          tripData: {
-            locations: updatedLocations
-          }
-        });
-      }
-    } catch (error) {
-      console.error('Error updating location:', error);
+      console.error('Error updating Firestore:', error);
       toast({
         title: "Error",
         description: "Failed to save changes. Please try again.",
@@ -224,145 +318,149 @@ export default function LocationPage() {
       });
     }
   };
-  
+
+  // Modern note-taking functions
   const handleAddActivity = (dateBlockId: string) => {
     if (!location) return;
-
+    
     const newActivityId = crypto.randomUUID();
-    const newLocation = deepCopyAndParseDates(location); 
+    const newLocation = deepCopyAndParseDatesSingle(location);
     const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
-
+    
     if (dateBlock) {
-        dateBlock.activities.push({ id: newActivityId, notes: '' });
-        setLocation(newLocation);
-        updateFirestore(newLocation);
-        
-        setTimeout(() => {
-            const newTextarea = document.querySelector(`[data-activity-id='${newActivityId}'] textarea`) as HTMLTextAreaElement | null;
-            newTextarea?.focus();
-        }, 0);
+      dateBlock.activities.push({ 
+        id: newActivityId, 
+        notes: '', 
+        type: 'text' 
+      });
+      setLocation(newLocation);
+      updateFirestore(newLocation);
+      
+      // Start editing the new activity
+      setEditingActivityId(newActivityId);
+      setEditingText('');
     }
   };
-  
-  const handleAddNewActivityAfter = (dateBlockId: string, currentActivityId: string) => {
-    if (!location) return;
-    const newActivityId = crypto.randomUUID();
-    const newLocation = deepCopyAndParseDates(location);
-    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
 
+  const handleStartEdit = (activity: Activity) => {
+    setEditingActivityId(activity.id);
+    setEditingText(activity.notes);
+  };
+
+  const handleSaveEdit = (dateBlockId: string, activityId: string) => {
+    if (!location || editingText.trim() === '') return;
+    
+    const newLocation = deepCopyAndParseDatesSingle(location);
+    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
+    
     if (dateBlock) {
-      const currentIndex = dateBlock.activities.findIndex((act: Activity) => act.id === currentActivityId);
-      if (currentIndex > -1) {
-        dateBlock.activities.splice(currentIndex + 1, 0, { id: newActivityId, notes: '' });
+      const activity = dateBlock.activities.find((act: Activity) => act.id === activityId);
+      if (activity) {
+        activity.notes = editingText.trim();
         setLocation(newLocation);
         updateFirestore(newLocation);
-
-        setTimeout(() => {
-          const newTextarea = document.querySelector(`[data-activity-id='${newActivityId}'] textarea`) as HTMLTextAreaElement | null;
-          newTextarea?.focus();
-        }, 0);
       }
     }
-  };
-
-  const handleActivityChange = (dateBlockId: string, activityId: string, value: string) => {
-    if (!location) return;
-
-    const newLocation = deepCopyAndParseDates(location);
-    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
-
-    if (dateBlock) {
-        const activity = dateBlock.activities.find((act: Activity) => act.id === activityId);
-        if (activity) {
-            activity.notes = value;
-            setLocation(newLocation);
-            updateFirestore(newLocation);
-        }
-    }
-  };
-  
-  const handleActivityKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, dateBlockId: string, activityId: string) => {
-    const target = e.target as HTMLTextAreaElement;
-    if (e.key === 'Backspace' && target.value === '') {
-        e.preventDefault();
-        handleDeleteActivity(dateBlockId, activityId);
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        handleAddNewActivityAfter(dateBlockId, activityId);
-    }
     
-    target.style.height = 'auto';
-    target.style.height = `${target.scrollHeight}px`;
+    setEditingActivityId(null);
+    setEditingText('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingActivityId(null);
+    setEditingText('');
   };
 
   const handleDeleteActivity = (dateBlockId: string, activityId: string) => {
     if (!location) return;
-
-    const newLocation = deepCopyAndParseDates(location);
-    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
-    if(dateBlock) {
-        const activityIndex = dateBlock.activities.findIndex((act: Activity) => act.id === activityId);
-        
-        if (activityIndex > -1) {
-          dateBlock.activities.splice(activityIndex, 1);
-          setLocation(newLocation);
-          updateFirestore(newLocation);
-          
-          setTimeout(() => {
-            const focusableElements = Array.from(document.querySelectorAll(`[data-date-block-id='${dateBlock.id}'] textarea`));
-            if (focusableElements.length > 0) {
-              const elementToFocus = (activityIndex > 0 ? focusableElements[activityIndex - 1] : focusableElements[0]) as HTMLElement;
-              elementToFocus?.focus();
-            } else {
-              const placeholder = document.querySelector(`[data-date-block-id='${dateBlock.id}'] [data-placeholder='true']`) as HTMLElement;
-              placeholder?.focus();
-            }
-          }, 0);
-        }
-    }
-  };
-  
-  const autoResizeTextarea = (el: HTMLTextAreaElement | null) => {
-    if (el) {
-        el.style.height = 'auto';
-        el.style.height = `${el.scrollHeight}px`;
-    }
-  };
-
-  const handleGenerateSuggestions = useCallback(async () => {
-    if (!trip || !location) return;
     
-    setShowSuggestions(true);
-    setIsGenerating(true);
-    setSuggestions('');
+    const newLocation = deepCopyAndParseDatesSingle(location);
+    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
+    
+    if (dateBlock) {
+      dateBlock.activities = dateBlock.activities.filter((act: Activity) => act.id !== activityId);
+      setLocation(newLocation);
+      updateFirestore(newLocation);
+    }
+  };
 
-    const tripItinerary = trip.tripData.locations.map(l => l.name);
-    const totalTripDays = (new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 3600 * 24) + 1;
-    const locationIndex = trip.tripData.locations.findIndex(l => l.id === location.id);
-    let locationPositionInTrip = 'middle';
-    if (locationIndex === 0) locationPositionInTrip = 'start';
-    if (locationIndex === trip.tripData.locations.length - 1) locationPositionInTrip = 'end';
+  const handleToggleComplete = (dateBlockId: string, activityId: string) => {
+    if (!location) return;
+    
+    const newLocation = deepCopyAndParseDatesSingle(location);
+    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
+    
+    if (dateBlock) {
+      const activity = dateBlock.activities.find((act: Activity) => act.id === activityId);
+      if (activity) {
+        activity.completed = !activity.completed;
+        setLocation(newLocation);
+        updateFirestore(newLocation);
+      }
+    }
+  };
 
-    const input: SuggestActivitiesInput = {
+  const handleAddLinkToActivity = (dateBlockId: string, activityId: string, linkString: string) => {
+    if (!location) return;
+    
+    const newLocation = deepCopyAndParseDatesSingle(location);
+    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
+    
+    if (dateBlock) {
+      const activity = dateBlock.activities.find((act: Activity) => act.id === activityId);
+      if (activity) {
+        activity.notes = linkString;
+        setLocation(newLocation);
+        updateFirestore(newLocation);
+      }
+    }
+  };
+
+  const handleGenerateSuggestions = async () => {
+    if (!location || !trip) return;
+    
+    try {
+      setIsGenerating(true);
+      
+      const totalTripDays = Math.floor((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const tripItinerary = trip.tripData.locations.map(l => l.name);
+      const locationIndex = trip.tripData.locations.findIndex(l => l.id === location.id);
+      let locationPositionInTrip = 'middle';
+      if (locationIndex === 0) locationPositionInTrip = 'start';
+      if (locationIndex === trip.tripData.locations.length - 1) locationPositionInTrip = 'end';
+      
+      const input: SuggestActivitiesInput = {
         locationName: location.name,
         locationDays: location.dateBlocks.length,
         totalTripDays,
         tripItinerary,
         locationPositionInTrip,
-        userPrompt: userPrompt || undefined,
-    };
-
-    try {
-        const result = await suggestActivities(input);
-        setSuggestions(result.suggestions);
+        userPrompt: userPrompt || undefined
+      };
+      
+      const result = await suggestActivities(input);
+      setSuggestions(result.suggestions);
+      setShowSuggestions(true);
     } catch (error) {
-        console.error("Error generating suggestions:", error);
-        setSuggestions("Sorry, I couldn't generate suggestions at this time. Please try again.");
+      console.error('Error generating suggestions:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate suggestions. Please try again.",
+        variant: "destructive",
+      });
     } finally {
-        setIsGenerating(false);
+      setIsGenerating(false);
     }
+  };
 
-  }, [trip, location, userPrompt]);
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 100);
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   if (isLoading) {
     return (
@@ -372,14 +470,11 @@ export default function LocationPage() {
     );
   }
 
-  if (!trip || !location) {
-    return <div>Loading location details...</div>;
+  if (!location || !trip) {
+    return <div>Location not found</div>;
   }
 
   const sortedDateBlocks = [...location.dateBlocks].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const cardHeightActivities = Math.min(Math.max(1, maxActivities), 5);
-  const cardMinHeight = `${120 + cardHeightActivities * 40}px`;
-
 
   return (
     <div className="min-h-screen w-full bg-background font-sans text-foreground flex flex-col">
@@ -441,94 +536,224 @@ export default function LocationPage() {
                                 </>
                             ) }
                         </Button>
-
                     </div>
                 </div>
             </div>
         </div>
       </header>
+
+      {/* Real-time collaboration status */}
+      <div className="bg-background border-b z-10">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-3">
+          <div className="flex items-center justify-center gap-2">
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+              collaborationStatus === 'connected' 
+                ? 'bg-green-100 text-green-800 border border-green-200' 
+                : collaborationStatus === 'connecting'
+                ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                : 'bg-red-100 text-red-800 border border-red-200'
+            }`}>
+              {collaborationStatus === 'connected' ? (
+                <>
+                  <Wifi className="w-4 h-4" />
+                  Live Collaboration
+                </>
+              ) : collaborationStatus === 'connecting' ? (
+                <>
+                  <Wifi className="w-4 h-4 animate-pulse" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4" />
+                  Offline
+                </>
+              )}
+            </div>
+            
+            {lastUpdateTime && (
+              <div className="text-xs text-muted-foreground">
+                Last update: {lastUpdateTime.toLocaleTimeString()}
+              </div>
+            )}
+            
+            {isCollaborating && (
+              <div className="text-xs text-green-600 font-medium">
+                ✓ Real-time updates enabled
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
       
       <main className="flex-1 p-4 md:p-6 lg:p-8 bg-background z-10 -mt-4 rounded-t-2xl shadow-lg">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-wrap gap-6 pb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {sortedDateBlocks.map((block) => (
-              <Card key={block.id} data-date-block-id={block.id} className="w-full md:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)] flex-shrink-0 flex flex-col transition-all duration-300" style={{ minHeight: cardMinHeight }}>
-                <CardHeader>
-                  <CardTitle className="text-lg">{format(block.date, 'EEEE, MMM d')}</CardTitle>
+              <Card key={block.id} className="flex flex-col h-fit">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-semibold text-foreground/90">
+                    {format(block.date, 'EEEE, MMM d')}
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col overflow-hidden pt-0">
-                   <div className={`flex-1 space-y-2 ${block.activities.length > 5 ? 'overflow-y-auto' : 'overflow-y-hidden'} pr-2 -mr-2`}>
-                       {block.activities.length === 0 && (
-                         <div className="space-y-1 group relative">
-                             <Textarea
-                               placeholder="What's the plan?"
-                               className="border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-2 h-auto min-h-[36px] resize-none bg-secondary/30 rounded-md"
-                               value=""
-                               onFocus={() => handleAddActivity(block.id)}
-                               readOnly
-                               data-placeholder="true"
-                             />
-                         </div>
-                       )}
-                       {block.activities.map((activity) => (
-                          <div key={activity.id} data-activity-id={activity.id} className="space-y-1 group relative">
-                                <Textarea
-                                  placeholder="What's the plan?"
-                                  className="border-none focus-visible:ring-0 focus-visible:ring-offset-0 p-2 h-auto min-h-[36px] resize-none bg-transparent hover:bg-secondary/30 focus:bg-secondary/30 rounded-md"
-                                  value={activity.notes}
-                                  onChange={(e) => handleActivityChange(block.id, activity.id, e.target.value)}
-                                  onKeyDown={(e) => handleActivityKeyDown(e, block.id, activity.id)}
-                                  ref={autoResizeTextarea}
-                                  rows={1}
-                                />
+                <CardContent className="pt-0 space-y-3">
+                  {/* Activities List */}
+                  <div className="space-y-2">
+                    {block.activities.map((activity) => (
+                      <div key={activity.id} className="group relative">
+                        {editingActivityId === activity.id ? (
+                          // Edit Mode
+                          <div className="space-y-2">
+                            <Textarea
+                              value={editingText}
+                              onChange={(e) => setEditingText(e.target.value)}
+                              placeholder="What's the plan?"
+                              className="min-h-[80px] resize-none border-2 border-blue-200 focus:border-blue-400 focus:ring-0"
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveEdit(block.id, activity.id)}
+                                className="bg-blue-600 hover:bg-blue-700"
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={handleCancelEdit}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Cancel
+                              </Button>
+                            </div>
                           </div>
-                       ))}
-                   </div>
+                        ) : (
+                          // View Mode
+                          <div className={`p-3 rounded-lg border transition-all duration-200 ${
+                            activity.completed 
+                              ? 'bg-green-50 border-green-200' 
+                              : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                          }`}>
+                            <div className="flex items-start gap-3">
+                              <button
+                                onClick={() => handleToggleComplete(block.id, activity.id)}
+                                className={`mt-1 flex-shrink-0 w-4 h-4 rounded border-2 transition-colors ${
+                                  activity.completed
+                                    ? 'bg-green-500 border-green-500'
+                                    : 'border-gray-300 hover:border-gray-400'
+                                }`}
+                              >
+                                {activity.completed && (
+                                  <Check className="w-full h-full text-white text-xs" />
+                                )}
+                              </button>
+                              
+                              <div className="flex-1 min-w-0">
+                                <div className={`${activity.completed ? 'line-through text-gray-500' : 'text-foreground'}`}>
+                                  {activity.notes ? (
+                                    <div className="whitespace-pre-wrap break-words">
+                                      <LinkParser text={activity.notes} />
+                                    </div>
+                                  ) : (
+                                    <span className="text-gray-400 italic">Empty note</span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <QuickLinkHelper
+                                  onAddLink={(linkString) => handleAddLinkToActivity(block.id, activity.id, linkString)}
+                                  locationName={location.name}
+                                  trigger={
+                                    <button
+                                      className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                                      title="Add Google Maps link"
+                                    >
+                                      <MapPin className="h-3 w-3" />
+                                    </button>
+                                  }
+                                />
+                                <button
+                                  onClick={() => handleStartEdit(activity)}
+                                  className="p-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                                  title="Edit note"
+                                >
+                                  <Edit3 className="h-3 w-3" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteActivity(block.id, activity.id)}
+                                  className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                                  title="Delete note"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Add New Activity Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAddActivity(block.id)}
+                    className="w-full border-dashed border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Note
+                  </Button>
                 </CardContent>
               </Card>
             ))}
           </div>
 
-           {showSuggestions && (
-            <Card className="mt-8 p-6 bg-secondary/30">
-                <CardHeader className="p-0 mb-4">
-                    <CardTitle className="text-2xl flex items-center gap-2">
-                        <Sparkles className="text-orange-500"/>
-                        AI-Powered Suggestions
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="space-y-4">
-                        <div>
-                            <label htmlFor="user-prompt" className="text-sm font-medium text-foreground/80 mb-2 block">
-                                Any specific requests? (e.g., "kid-friendly", "focus on museums", "only free activities")
-                            </label>
-                            <Input
-                                id="user-prompt"
-                                placeholder="Tell the AI what you're looking for..."
-                                value={userPrompt}
-                                onChange={(e) => setUserPrompt(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleGenerateSuggestions()}
-                                disabled={isGenerating}
-                            />
-                        </div>
-                        {(isGenerating || suggestions) && (
-                            <div className="pt-4">
-                                <label className="text-sm font-medium text-foreground/80 mb-2 block">
-                                    Here are some ideas to get you started:
-                                </label>
-                                <Textarea
-                                    readOnly
-                                    value={isGenerating ? "Thinking..." : suggestions}
-                                    className="w-full h-64 bg-background font-mono text-sm"
-                                    placeholder="AI suggestions will appear here..."
-                                />
-                            </div>
-                        )}
+          {showSuggestions && (
+            <Card className="mt-8 p-6 bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200">
+              <CardHeader className="p-0 mb-4">
+                <CardTitle className="text-2xl flex items-center gap-2 text-orange-800">
+                  <Sparkles className="text-orange-500"/>
+                  AI-Powered Suggestions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="user-prompt" className="text-sm font-medium text-orange-800 mb-2 block">
+                      Any specific requests? (e.g., "kid-friendly", "focus on museums", "only free activities")
+                    </label>
+                    <Input
+                      id="user-prompt"
+                      placeholder="Tell the AI what you're looking for..."
+                      value={userPrompt}
+                      onChange={(e) => setUserPrompt(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleGenerateSuggestions()}
+                      disabled={isGenerating}
+                      className="border-orange-200 focus:border-orange-400 focus:ring-orange-200"
+                    />
+                  </div>
+                  {(isGenerating || suggestions) && (
+                    <div className="pt-4">
+                      <label className="text-sm font-medium text-orange-800 mb-2 block">
+                        Here are some ideas to get you started:
+                      </label>
+                      <Textarea
+                        readOnly
+                        value={isGenerating ? "Thinking..." : suggestions}
+                        className="w-full h-64 bg-white border-orange-200 font-mono text-sm"
+                        placeholder="AI suggestions will appear here..."
+                      />
                     </div>
-                </CardContent>
+                  )}
+                </div>
+              </CardContent>
             </Card>
-           )}
+          )}
         </div>
       </main>
     </div>
