@@ -91,8 +91,10 @@ export default function LocationPage() {
   const [focusedActivityId, setFocusedActivityId] = useState<string | null>(null);
   const [activityTexts, setActivityTexts] = useState<Record<string, string>>({});
   const [savingActivityId, setSavingActivityId] = useState<string | null>(null);
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
   const [newNoteTexts, setNewNoteTexts] = useState<Record<string, string>>({});
   const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const saveTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
 
   // Real-time collaboration state
   const [isCollaborating, setIsCollaborating] = useState(false);
@@ -362,17 +364,49 @@ export default function LocationPage() {
 
   const handleActivityTextChange = (activityId: string, text: string) => {
     setActivityTexts(prev => ({ ...prev, [activityId]: text }));
+    
+    // Clear existing timeout
+    if (saveTimeouts.current[activityId]) {
+      clearTimeout(saveTimeouts.current[activityId]);
+    }
+    
+    // Set new timeout for auto-save (debounced)
+    saveTimeouts.current[activityId] = setTimeout(async () => {
+      // Find the dateBlockId for this activity
+      const dateBlockId = location?.dateBlocks.find(block => 
+        block.activities.some(act => act.id === activityId)
+      )?.id;
+      
+      if (dateBlockId) {
+        console.log('🔄 Auto-saving note after typing pause:', { activityId, text });
+        await handleActivityBlur(dateBlockId, activityId);
+      }
+    }, 2000); // Auto-save after 2 seconds of no typing
   };
 
   const handleActivityBlur = async (dateBlockId: string, activityId: string) => {
     if (!location) return;
     
+    // Clear any pending auto-save timeout since we're saving now
+    if (saveTimeouts.current[activityId]) {
+      clearTimeout(saveTimeouts.current[activityId]);
+      delete saveTimeouts.current[activityId];
+    }
+    
     const text = activityTexts[activityId] || '';
     console.log('💾 Saving note:', { activityId, text, dateBlockId });
     
+    // If empty text, delete the activity instead
     if (!text.trim()) {
-      console.log('⏸️ Skipping save - empty text');
+      console.log('🗑️ Empty text - deleting activity');
+      await handleDeleteActivity(dateBlockId, activityId);
       setFocusedActivityId(null);
+      return;
+    }
+    
+    // Prevent multiple saves for the same activity
+    if (savingActivityId === activityId) {
+      console.log('⏸️ Already saving this activity, skipping');
       return;
     }
     
@@ -386,6 +420,11 @@ export default function LocationPage() {
         if (oldNotes !== text.trim()) {
           console.log('💾 Note changed, saving:', { old: oldNotes, new: text.trim() });
           setSavingActivityId(activityId);
+          
+          // Store original for rollback
+          const originalLocation = location;
+          
+          // Optimistic update
           activity.notes = text.trim();
           setLocation(newLocation);
           
@@ -394,9 +433,11 @@ export default function LocationPage() {
             console.log('✅ Note saved successfully');
           } catch (error) {
             console.error('❌ Save failed:', error);
-            // Revert the change if save failed
-            activity.notes = oldNotes;
-            setLocation(deepCopyAndParseDatesSingle(location));
+            
+            // Rollback on failure
+            setLocation(originalLocation);
+            setActivityTexts(prev => ({ ...prev, [activityId]: oldNotes }));
+            
             toast({
               title: "Save Failed",
               description: "Your note couldn't be saved. Please try again.",
@@ -432,25 +473,52 @@ export default function LocationPage() {
     setNewNoteTexts(prev => ({ ...prev, [dateBlockId]: text }));
   };
 
-  const handleNewNoteBlur = (dateBlockId: string) => {
+  const handleNewNoteBlur = async (dateBlockId: string) => {
     const text = newNoteTexts[dateBlockId]?.trim();
     if (text) {
       console.log('💾 Creating new note on blur:', { dateBlockId, text });
-      // Create a new activity when user finishes typing
-      const newActivityId = crypto.randomUUID();
-      const newLocation = deepCopyAndParseDatesSingle(location!);
-      const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
       
-      if (dateBlock) {
-        dateBlock.activities.push({ 
-          id: newActivityId, 
-          notes: text, 
-          type: 'text' 
+      const newActivityId = crypto.randomUUID();
+      const originalLocation = location!;
+      
+      try {
+        // Optimistic update
+        const newLocation = deepCopyAndParseDatesSingle(location!);
+        const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
+        
+        if (dateBlock) {
+          dateBlock.activities.push({ 
+            id: newActivityId, 
+            notes: text, 
+            type: 'text' 
+          });
+          
+          setLocation(newLocation);
+          setActivityTexts(prev => ({ ...prev, [newActivityId]: text }));
+          setNewNoteTexts(prev => ({ ...prev, [dateBlockId]: '' })); // Clear the temporary text
+          
+          await updateFirestore(newLocation);
+          console.log('✅ New note created successfully');
+        }
+      } catch (error) {
+        console.error('❌ Failed to create new note:', error);
+        
+        // Rollback on failure
+        setLocation(originalLocation);
+        setNewNoteTexts(prev => ({ ...prev, [dateBlockId]: text })); // Restore the text
+        
+        // Remove from activity texts if it was added
+        setActivityTexts(prev => {
+          const newTexts = { ...prev };
+          delete newTexts[newActivityId];
+          return newTexts;
         });
-        setLocation(newLocation);
-        setActivityTexts(prev => ({ ...prev, [newActivityId]: text }));
-        setNewNoteTexts(prev => ({ ...prev, [dateBlockId]: '' })); // Clear the temporary text
-        updateFirestore(newLocation);
+        
+        toast({
+          title: "Failed to Create Note",
+          description: "Your note couldn't be created. Please try again.",
+          variant: "destructive",
+        });
       }
     }
   };
@@ -462,16 +530,59 @@ export default function LocationPage() {
     }
   };
 
-  const handleDeleteActivity = (dateBlockId: string, activityId: string) => {
+  const handleDeleteActivity = async (dateBlockId: string, activityId: string) => {
     if (!location) return;
     
-    const newLocation = deepCopyAndParseDatesSingle(location);
-    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
+    // Show loading state
+    setDeletingActivityId(activityId);
     
-    if (dateBlock) {
-      dateBlock.activities = dateBlock.activities.filter((act: Activity) => act.id !== activityId);
-      setLocation(newLocation);
-      updateFirestore(newLocation);
+    // Store original state for rollback
+    const originalLocation = location;
+    
+    try {
+      // Optimistic update - remove from UI immediately
+      const newLocation = deepCopyAndParseDatesSingle(location);
+      const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
+      
+      if (dateBlock) {
+        dateBlock.activities = dateBlock.activities.filter((act: Activity) => act.id !== activityId);
+        setLocation(newLocation);
+        
+        // Remove from local state too
+        setActivityTexts(prev => {
+          const newTexts = { ...prev };
+          delete newTexts[activityId];
+          return newTexts;
+        });
+        
+        // Clear any pending save timeouts
+        if (saveTimeouts.current[activityId]) {
+          clearTimeout(saveTimeouts.current[activityId]);
+          delete saveTimeouts.current[activityId];
+        }
+        
+        // Save to database
+        await updateFirestore(newLocation);
+        console.log('✅ Note deleted successfully');
+        
+        toast({
+          title: "Note deleted",
+          description: "Your note has been removed.",
+        });
+      }
+    } catch (error) {
+      console.error('❌ Delete failed:', error);
+      
+      // Rollback on failure
+      setLocation(originalLocation);
+      
+      toast({
+        title: "Delete Failed",
+        description: "Couldn't delete the note. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingActivityId(null);
     }
   };
 
@@ -696,7 +807,7 @@ export default function LocationPage() {
                   {/* Existing notes */}
                   {block.activities.filter(activity => activity.notes && activity.notes.trim() !== '').map((activity) => (
                     <div key={activity.id} className="group flex items-start gap-2 p-2 hover:bg-gray-50 rounded-md">
-                      <div className="w-1 h-1 rounded-full bg-gray-400 mt-2.5 flex-shrink-0"></div>
+                      <div className={`w-1 h-1 rounded-full mt-2.5 flex-shrink-0 ${savingActivityId === activity.id ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'}`}></div>
                       <textarea
                         ref={(el) => {
                           textareaRefs.current[activity.id] = el as any;
@@ -725,9 +836,14 @@ export default function LocationPage() {
                       />
                       <button
                         onClick={() => handleDeleteActivity(block.id, activity.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity flex-shrink-0"
+                        disabled={deletingActivityId === activity.id}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        {deletingActivityId === activity.id ? (
+                          <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3 h-3" />
+                        )}
                       </button>
                     </div>
                   ))}
