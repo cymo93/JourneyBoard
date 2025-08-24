@@ -19,7 +19,7 @@ export async function getPexelsImage(query: string) {
   try {
     const response = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, {
       headers: {
-        Authorization: `Bearer ${process.env.PEXELS_API_KEY}`,
+        Authorization: process.env.PEXELS_API_KEY!,
       },
     });
 
@@ -54,7 +54,7 @@ export async function getNewPexelsImage(query: string) {
     const randomPage = Math.floor(Math.random() * 10) + 1;
     const response = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1&page=${randomPage}`, {
       headers: {
-        Authorization: `Bearer ${process.env.PEXELS_API_KEY}`,
+        Authorization: process.env.PEXELS_API_KEY!,
       },
     });
 
@@ -96,7 +96,7 @@ export async function testPexelsAPI() {
     
     const response = await fetch('https://api.pexels.com/v1/search?query=test&per_page=1', {
       headers: {
-        Authorization: `Bearer ${process.env.PEXELS_API_KEY}`,
+        Authorization: process.env.PEXELS_API_KEY!,
       },
     });
     
@@ -131,7 +131,7 @@ export async function getPexelsImageForLocationPage(query: string) {
     
     const response = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=1`, {
       headers: {
-        Authorization: `Bearer ${process.env.PEXELS_API_KEY}`,
+        Authorization: process.env.PEXELS_API_KEY!,
       },
     });
 

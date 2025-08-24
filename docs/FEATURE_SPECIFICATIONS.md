@@ -89,7 +89,7 @@ This document details each feature of the JourneyBoard application, its intended
     -   ✅ The "Delete" button shows appropriate confirmation dialog based on user permissions.
     -   ✅ Sample trips show special delete dialog with "Sample Trip" badge and clear messaging.
     -   ✅ Clicking a location card navigates to `/trips/[tripId]/locations/[locationId]`.
-    -   ✅ "Find Hotels" button opens Booking.com with location and dates pre-filled.
+    -   ✅ "Hotels.com" button opens Hotels.com with location and dates pre-filled.
 
 ---
 

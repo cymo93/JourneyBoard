@@ -39,7 +39,7 @@ export function TripImage({
     setIsLoading(false);
   };
 
-  // Fetch location image when component mounts
+  // Fetch location image when component mounts (with delay to prevent API spam)
   useEffect(() => {
     const fetchLocationImage = async () => {
       try {
@@ -59,7 +59,10 @@ export function TripImage({
 
     // Only fetch if we have locations and no valid src
     if (locations.length > 0 && (!src || src === '' || src.includes('placehold.co') || src.includes('600 × 400'))) {
-      fetchLocationImage();
+      // Add random delay to prevent API spam when loading many trip cards
+      const delay = Math.random() * 2000; // 0-2 second random delay
+      const timeoutId = setTimeout(fetchLocationImage, delay);
+      return () => clearTimeout(timeoutId);
     }
   }, [locations, src]);
 

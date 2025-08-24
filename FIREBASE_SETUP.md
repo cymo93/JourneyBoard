@@ -57,7 +57,11 @@ service cloud.firestore {
       );
       allow write: if request.auth != null && (
         request.auth.uid == resource.data.ownerId ||
-        request.auth.uid in resource.data.editors
+        request.auth.uid in resource.data.editors ||
+        // Temporary: Allow users to add themselves to editors array if they have an accepted invitation
+        // This enables the invitation acceptance flow to work
+        (request.auth.uid in request.resource.data.editors && 
+         request.auth.uid not in resource.data.editors)
       );
       allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
     }

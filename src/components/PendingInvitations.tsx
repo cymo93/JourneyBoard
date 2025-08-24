@@ -9,7 +9,11 @@ import { getPendingInvitations, acceptInvitation } from '@/lib/firestore';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 
-export function PendingInvitations() {
+interface PendingInvitationsProps {
+  onInvitationAccepted?: () => void;
+}
+
+export function PendingInvitations({ onInvitationAccepted }: PendingInvitationsProps) {
   const [invitations, setInvitations] = useState<Array<{
     id: string;
     tripId: string;
@@ -33,7 +37,7 @@ export function PendingInvitations() {
     
     try {
       setLoading(true);
-      const pendingInvitations = await getPendingInvitations(user.email);
+      const pendingInvitations = await getPendingInvitations(user.email, user);
       setInvitations(pendingInvitations);
     } catch (error) {
       console.error('Error loading invitations:', error);
@@ -57,22 +61,32 @@ export function PendingInvitations() {
       if (result.success) {
         toast({
           title: "Success",
-          description: "Invitation accepted! You can now access the trip.",
+          description: result.message || "Invitation accepted! You can now access the trip.",
         });
         // Remove the accepted invitation from the list
         setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+        // Refresh the trips list to show the new shared trip
+        if (onInvitationAccepted) {
+          setTimeout(() => {
+            onInvitationAccepted();
+          }, 1000);
+        }
       } else {
         toast({
           title: "Error",
           description: result.message,
           variant: "destructive",
         });
+        // If it's a permanent error, remove the invitation from the list
+        if (result.message.includes('not found') || result.message.includes('deleted')) {
+          setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+        }
       }
     } catch (error) {
       console.error('Error accepting invitation:', error);
       toast({
         title: "Error",
-        description: "Failed to accept invitation",
+        description: "Failed to accept invitation. Please try refreshing the page.",
         variant: "destructive",
       });
     } finally {

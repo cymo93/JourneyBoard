@@ -13,16 +13,132 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, MapPin, Plus, RotateCw, Users, Share2, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, MapPin, Plus, RotateCw, Users, Share2, Clock, Star, Bookmark } from 'lucide-react';
 import { getPexelsImage, getNewPexelsImage } from './actions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/hooks/useAuth';
-import { getUserTrips, createTrip, updateTrip, Trip, testFirestoreConnection } from '@/lib/firestore';
+import { getUserTrips, createTrip, updateTrip, Trip, testFirestoreConnection, getPublishedTemplates, type PublishedTrip } from '@/lib/firestore';
 import { ShareTripDialog } from '@/components/ShareTripDialog';
 import { PendingInvitations } from '@/components/PendingInvitations';
 import { TripImage } from '@/components/TripImage';
 
 import { useToast } from '@/hooks/use-toast';
+
+// Featured Templates Component
+function FeaturedTemplates() {
+  const [templates, setTemplates] = useState<PublishedTrip[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadFeaturedTemplates();
+  }, []);
+
+  const loadFeaturedTemplates = async () => {
+    try {
+      const featuredTemplates = await getPublishedTemplates({
+        sortBy: 'rating',
+        limit: 3
+      });
+      setTemplates(featuredTemplates);
+    } catch (error) {
+      console.error('Error loading featured templates:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getDurationLabel = (days: number) => {
+    if (days <= 3) return `${days} day${days === 1 ? '' : 's'}`;
+    if (days <= 7) return `${days} days`;
+    const weeks = Math.floor(days / 7);
+    const remainingDays = days % 7;
+    if (remainingDays === 0) return `${weeks} week${weeks === 1 ? '' : 's'}`;
+    return `${weeks} week${weeks === 1 ? '' : 's'} ${remainingDays} day${remainingDays === 1 ? '' : 's'}`;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <div className="h-4 bg-gray-200 rounded animate-pulse mb-2"></div>
+              <div className="h-3 bg-gray-200 rounded animate-pulse"></div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="h-3 bg-gray-200 rounded animate-pulse w-16"></div>
+                  <div className="h-3 bg-gray-200 rounded animate-pulse w-20"></div>
+                </div>
+                <div className="h-3 bg-gray-200 rounded animate-pulse w-24"></div>
+                <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  if (templates.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+          <MapPin className="h-8 w-8 text-gray-400" />
+        </div>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">No templates yet</h3>
+        <p className="text-gray-600 mb-4">
+          Be the first to publish a trip template and inspire others!
+        </p>
+        <Button asChild>
+          <Link href="/templates">
+            Browse Templates
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {templates.map((template) => (
+        <Card key={template.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg line-clamp-2">{template.title}</CardTitle>
+            <p className="text-sm text-foreground/60 line-clamp-2">
+              {template.description}
+            </p>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-3">
+              <div className="flex items-center gap-4 text-sm text-foreground/60">
+                <div className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  <span>{getDurationLabel(template.duration)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <MapPin className="h-4 w-4" />
+                  <span>{template.locationCount} location{template.locationCount !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-sm">
+                <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                <span className="font-medium">{template.rating.toFixed(1)}</span>
+                <span className="text-foreground/60">({template.ratingCount})</span>
+              </div>
+              <Button className="w-full" asChild>
+                <Link href={`/templates/${template.id}`}>
+                  Use This Template
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 const initialTrips = [
   {
@@ -91,6 +207,13 @@ export default function MyTripsPage() {
       loadTrips();
     }
   }, [user]);
+
+  // Refresh trips when user accepts invitations or gets shared trips
+  const refreshTrips = () => {
+    if (user) {
+      loadTrips();
+    }
+  };
 
   // Add retry functionality
   const handleRetry = () => {
@@ -432,7 +555,7 @@ export default function MyTripsPage() {
         </div>
       </header>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PendingInvitations />
+        <PendingInvitations onInvitationAccepted={refreshTrips} />
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -573,6 +696,35 @@ export default function MyTripsPage() {
             })}
           </div>
         )}
+
+        {/* Discover Templates Section */}
+        <div className="mt-16">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-foreground">Discover Trip Templates</h2>
+              <p className="text-foreground/60 mt-1">
+                Get inspired by trips created by the JourneyBoard community
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {user && (
+                <Button variant="outline" asChild>
+                  <Link href="/saved">
+                    <Bookmark className="h-4 w-4 mr-2" />
+                    Saved
+                  </Link>
+                </Button>
+              )}
+              <Button variant="outline" asChild>
+                <Link href="/templates">
+                  View All Templates
+                </Link>
+              </Button>
+            </div>
+          </div>
+          
+          <FeaturedTemplates />
+        </div>
       </main>
     </div>
     </TooltipProvider>

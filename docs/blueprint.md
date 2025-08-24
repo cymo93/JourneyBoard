@@ -8,7 +8,7 @@
 - **Date Addition**: Enable users to add date blocks within each location row by clicking an 'Add Date' button.
 - **Travel Day Overlap**: Automatically create the first day block of every new location using the last day of the previous location, signalling a travel day overlap.
 - **Dynamic Date Calculation**: Automatically re-compute the number of nights and the end date as dates are added or removed.
-- **Hotel Integration**: Open a partner site using the row's first and last dates as check-in and check-out dates, facilitating hotel bookings.
+- **Hotel Integration**: Open Hotels.com using the row's first and last dates as check-in and check-out dates, facilitating hotel bookings.
 - **Collaborative Planning**: Share trips with other users with edit or view permissions.
 - **Real-time Synchronization**: All changes are synchronized across devices and collaborators in real-time.
 - **AI-Powered Suggestions**: Generate intelligent activity suggestions for each location using Genkit AI.

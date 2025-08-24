@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, type FC, type MouseEvent } from 'react';
+import { useState, useMemo, useEffect, useRef, type FC, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { addDays, format, differenceInDays, subDays } from 'date-fns';
@@ -30,11 +30,16 @@ import {
   X,
   Share2,
   Trash2,
-  Hotel
+  Hotel,
+  Upload,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
-import { getTrip, updateTrip, Trip as FirestoreTrip } from '@/lib/firestore';
+import { getTrip, updateTrip, Trip as FirestoreTrip, subscribeToTripUpdates } from '@/lib/firestore';
 import { ShareTripDialog } from '@/components/ShareTripDialog';
 import { DeleteTripDialog } from '@/components/DeleteTripDialog';
+import { PublishTripDialog } from '@/components/PublishTripDialog';
+import { useAuth } from '@/hooks/useAuth';
 
 type DateBlock = {
   id: string;
@@ -52,6 +57,10 @@ type Trip = {
   title: string;
   startDate: string;
   endDate: string;
+  ownerId?: string;
+  editors?: string[];
+  viewers?: string[];
+  locations?: string[];
   tripData: {
     locations: Location[];
   };
@@ -103,7 +112,12 @@ export default function JourneyBoardPage() {
   const [tempLocationName, setTempLocationName] = useState('');
   const [deletingLocationId, setDeletingLocationId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCollaborating, setIsCollaborating] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  const [collaborationStatus, setCollaborationStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
   const { toast } = useToast();
+  const { user } = useAuth();
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   const deepCopyAndParseDates = (locationsToCopy: any[]): Location[] => {
     return locationsToCopy.map((loc: any) => ({
@@ -115,11 +129,35 @@ export default function JourneyBoardPage() {
     }));
   };
 
-  // Load trip from Firestore
+  // Load trip from Firestore with real-time collaboration
   useEffect(() => {
     if (tripId) {
-      loadTrip();
+      setupRealTimeCollaboration();
+      
+      // Fallback timeout to ensure loading state is cleared
+      const loadingTimeout = setTimeout(() => {
+        console.log('⏰ Loading timeout - forcing isLoading to false');
+        setIsLoading(false);
+      }, 8000); // 8 second timeout
+      
+      return () => {
+        clearTimeout(loadingTimeout);
+        if (unsubscribeRef.current) {
+          console.log('🔴 Cleaning up real-time listener for trip:', tripId);
+          unsubscribeRef.current();
+          unsubscribeRef.current = null;
+        }
+      };
     }
+    
+    // Cleanup real-time listener on unmount
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log('🔴 Cleaning up real-time listener for trip:', tripId);
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
   }, [tripId]);
 
   // Add retry mechanism for failed loads
@@ -181,6 +219,92 @@ export default function JourneyBoardPage() {
     return fixedLocations;
   };
 
+  const setupRealTimeCollaboration = () => {
+    console.log('🔴 Setting up real-time collaboration for trip:', tripId);
+    setCollaborationStatus('connecting');
+    
+    try {
+      // Set up real-time listener
+      const unsubscribe = subscribeToTripUpdates(
+        tripId,
+        (updatedTrip) => {
+          if (updatedTrip) {
+            console.log('🟢 Real-time update received:', updatedTrip.title);
+            setCollaborationStatus('connected');
+            setIsCollaborating(true);
+            setLastUpdateTime(new Date());
+            
+            // Process the updated trip data
+            const parsedLocations = updatedTrip.tripData?.locations ? deepCopyAndParseDates(updatedTrip.tripData.locations) : [];
+            const fixedLocations = fixDateContinuity(parsedLocations);
+            
+            // Ensure the trip has all required fields and preserve existing trip data
+            const safeTrip: Trip = {
+              id: tripId, // Use tripId from URL params instead of updatedTrip.id
+              title: updatedTrip.title,
+              startDate: updatedTrip.startDate,
+              endDate: updatedTrip.endDate,
+              ownerId: updatedTrip.ownerId,
+              editors: Array.isArray(updatedTrip.editors) ? updatedTrip.editors : (trip?.editors || []),
+              viewers: Array.isArray(updatedTrip.viewers) ? updatedTrip.viewers : (trip?.viewers || []),
+              locations: Array.isArray(updatedTrip.locations) ? updatedTrip.locations : (trip?.locations || []),
+              tripData: { locations: fixedLocations }
+            };
+            
+            console.log('🔧 Real-time trip update processed:', {
+              hasEditors: Array.isArray(safeTrip.editors),
+              hasViewers: Array.isArray(safeTrip.viewers),
+              editorsLength: safeTrip.editors?.length,
+              viewersLength: safeTrip.viewers?.length
+            });
+            
+            console.log('🔄 Real-time listener updating trip and locations...');
+            setTrip(safeTrip);
+            setLocations(fixedLocations);
+            // Ensure loading state is cleared when real-time data arrives
+            setIsLoading(false);
+            console.log('✅ Real-time listener update complete, isLoading set to false');
+            
+            // Show collaboration notification
+            if (lastUpdateTime && updatedTrip.updatedAt) {
+              const lastUpdate = updatedTrip.updatedAt.toDate ? updatedTrip.updatedAt.toDate() : new Date(updatedTrip.updatedAt);
+              if (lastUpdate > lastUpdateTime) {
+                toast({
+                  title: "Collaboration Update",
+                  description: "Trip has been updated by another user",
+                });
+              }
+            }
+          } else {
+            console.log('🔴 Trip not found in real-time listener');
+            setCollaborationStatus('disconnected');
+            setIsCollaborating(false);
+          }
+        },
+        (error) => {
+          console.error('❌ Real-time collaboration error:', error);
+          setCollaborationStatus('disconnected');
+          setIsCollaborating(false);
+          toast({
+            title: "Collaboration Error",
+            description: "Lost connection to real-time updates",
+            variant: "destructive",
+          });
+        }
+      );
+      
+      unsubscribeRef.current = unsubscribe;
+      console.log('✅ Real-time collaboration setup complete');
+      
+    } catch (error) {
+      console.error('❌ Failed to setup real-time collaboration:', error);
+      setCollaborationStatus('disconnected');
+      setIsCollaborating(false);
+      // Fallback to regular loading
+      loadTrip();
+    }
+  };
+
   const loadTrip = async () => {
     try {
       setIsLoading(true);
@@ -198,17 +322,23 @@ export default function JourneyBoardPage() {
         console.log('Fixed locations:', fixedLocations);
         
         const localTrip: Trip = {
-          id: firestoreTrip.id!,
+          id: tripId, // Use tripId from URL params instead of firestoreTrip.id
           title: firestoreTrip.title,
           startDate: firestoreTrip.startDate,
           endDate: firestoreTrip.endDate,
+          ownerId: firestoreTrip.ownerId,
+          editors: firestoreTrip.editors || [],
+          viewers: firestoreTrip.viewers || [],
+          locations: firestoreTrip.locations || [],
           tripData: { locations: fixedLocations }
         };
         
+        console.log('✅ Setting trip state and locations, clearing loading...');
         setTrip(localTrip);
         setLocations(fixedLocations);
+        console.log('✅ Trip loaded successfully, isLoading should be false');
       } else {
-        console.log('Trip not found in Firestore');
+        console.log('❌ Trip not found in Firestore');
         toast({
           title: "Error",
           description: "Trip not found. It may still be being created.",
@@ -227,21 +357,44 @@ export default function JourneyBoardPage() {
         variant: "destructive",
       });
     } finally {
+      console.log('🔄 Setting isLoading to false in loadTrip finally block');
       setIsLoading(false);
     }
   };
 
   // Save trip to Firestore when locations change
   useEffect(() => {
-    if (trip && locations.length > 0) {
+    if (trip && locations.length > 0 && trip.editors !== undefined && trip.viewers !== undefined && !isLoading) {
+      console.log('🔄 Auto-saving trip due to changes...');
       saveTrip();
+    } else {
+      console.log('⏸️ Skipping auto-save - trip not ready:', {
+        hasTrip: !!trip,
+        locationsLength: locations.length,
+        hasEditors: trip?.editors !== undefined,
+        hasViewers: trip?.viewers !== undefined,
+        isLoading: isLoading
+      });
     }
-  }, [locations, trip]);
+  }, [locations, trip, isLoading]);
 
   const saveTrip = async () => {
-    if (!trip) return;
+    if (!trip || !trip.id) {
+      console.log('⚠️ Cannot save trip - missing trip or trip.id:', { trip: !!trip, tripId: trip?.id });
+      return;
+    }
     
     try {
+      console.log('🔍 Saving trip with data:', {
+        tripId: trip.id,
+        hasEditors: Array.isArray(trip.editors),
+        hasViewers: Array.isArray(trip.viewers),
+        hasLocations: Array.isArray(trip.locations),
+        editorsLength: trip.editors?.length,
+        viewersLength: trip.viewers?.length,
+        locationsLength: trip.locations?.length,
+      });
+
       const allDates = locations.flatMap(l => l.dateBlocks.map(d => new Date(d.date)));
       
       let startDate = trip.startDate;
@@ -253,10 +406,13 @@ export default function JourneyBoardPage() {
         endDate = allDates[allDates.length - 1].toISOString();
       }
 
-      await updateTrip(trip.id, {
+      const updateData = {
         title: trip.title,
         startDate,
         endDate,
+        locations: locations.map(loc => loc.name), // Top-level locations array for compatibility
+        editors: Array.isArray(trip.editors) ? trip.editors : [], // Ensure editors array exists
+        viewers: Array.isArray(trip.viewers) ? trip.viewers : [], // Ensure viewers array exists
         tripData: {
           locations: locations.map(loc => ({
             ...loc,
@@ -266,7 +422,20 @@ export default function JourneyBoardPage() {
             }))
           }))
         }
+      };
+
+      console.log('🔍 Saving trip with data:', {
+        tripId: trip.id,
+        hasEditors: Array.isArray(updateData.editors),
+        hasViewers: Array.isArray(updateData.viewers),
+        hasLocations: Array.isArray(updateData.locations),
+        editorsLength: updateData.editors?.length,
+        viewersLength: updateData.viewers?.length,
+        locationsLength: updateData.locations?.length,
+        updateData
       });
+
+      await updateTrip(trip.id, updateData);
     } catch (error) {
       console.error('Error saving trip:', error);
       toast({
@@ -447,7 +616,7 @@ export default function JourneyBoardPage() {
   const handleFindHotels = (location: Location) => {
     if (location.dateBlocks.length === 0) {
         toast({
-          title: "Cannot find hotels",
+          title: "Cannot search Hotels.com",
           description: "Please add dates to the location first.",
           variant: "destructive"
         });
@@ -456,8 +625,16 @@ export default function JourneyBoardPage() {
     const sortedDates = [...location.dateBlocks].sort((a,b) => a.date.getTime() - b.date.getTime());
     const checkin = format(sortedDates[0].date, 'yyyy-MM-dd');
     const checkout = format(addDays(sortedDates[sortedDates.length - 1].date, 1), 'yyyy-MM-dd');
-    const url = `https://www.booking.com/searchresults.html?ss=${encodeURIComponent(location.name)}&checkin=${checkin}&checkout=${checkout}&group_adults=2&no_rooms=1&group_children=0`;
+    
+    // Hotels.com integration with better parameters
+    const url = `https://www.hotels.com/search.do?destination-id=${encodeURIComponent(location.name)}&q-check-in=${checkin}&q-check-out=${checkout}&q-rooms=1&q-room-0-adults=2&q-room-0-children=0&sort-order=BEST_SELLER`;
+    
+    // Open in new tab and show success message
     window.open(url, '_blank');
+    toast({
+      title: "Searching Hotels.com",
+      description: `Opening Hotels.com for ${location.name} (${checkin} to ${checkout})`,
+    });
   };
     
     const handleCardClick = (e: MouseEvent, loc: Location) => {
@@ -506,6 +683,12 @@ export default function JourneyBoardPage() {
                     </Button>
                 </div>
                 <div className="flex items-center gap-2">
+                    <PublishTripDialog trip={trip as any}>
+                        <Button variant="outline" className="bg-card hover:bg-secondary/50">
+                            <Upload className="mr-2 h-4 w-4"/>
+                            Publish
+                        </Button>
+                    </PublishTripDialog>
                     <ShareTripDialog tripId={tripId} tripTitle={trip?.title || 'Trip'}>
                         <Button variant="outline" className="bg-card hover:bg-secondary/50">
                             <Share2 className="mr-2 h-4 w-4"/>
@@ -538,6 +721,50 @@ export default function JourneyBoardPage() {
             </div>
         </div>
       </header>
+
+      {/* Real-time collaboration status */}
+      <div className="bg-background border-b">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-3">
+          <div className="flex items-center justify-center gap-2">
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+              collaborationStatus === 'connected' 
+                ? 'bg-green-100 text-green-800 border border-green-200' 
+                : collaborationStatus === 'connecting'
+                ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                : 'bg-red-100 text-red-800 border border-red-200'
+            }`}>
+              {collaborationStatus === 'connected' ? (
+                <>
+                  <Wifi className="w-4 h-4" />
+                  Live Collaboration
+                </>
+              ) : collaborationStatus === 'connecting' ? (
+                <>
+                  <Wifi className="w-4 h-4 animate-pulse" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-4 h-4" />
+                  Offline
+                </>
+              )}
+            </div>
+            
+            {lastUpdateTime && (
+              <div className="text-xs text-muted-foreground">
+                Last update: {lastUpdateTime.toLocaleTimeString()}
+              </div>
+            )}
+            
+            {isCollaborating && (
+              <div className="text-xs text-green-600 font-medium">
+                ✓ Real-time updates enabled
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
         <div className="max-w-7xl mx-auto flex flex-col gap-3">
@@ -588,7 +815,7 @@ export default function JourneyBoardPage() {
                         </p>
                         <Button variant="outline" size="sm" className="gap-2 text-foreground/80 bg-card hover:bg-secondary/50" onClick={() => handleFindHotels(loc)}>
                            <Hotel className="w-4 h-4"/>
-                           Find Hotels
+                           Hotels.com
                         </Button>
                       </div>
                     

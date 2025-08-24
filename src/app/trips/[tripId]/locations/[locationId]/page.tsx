@@ -8,21 +8,18 @@ import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
-import { ChevronLeft, Sparkles, Loader2, MapPin, Plus, Trash2, Edit3, Check, X, Wifi, WifiOff } from 'lucide-react';
+import { ChevronLeft, Sparkles, Loader2, Plus, Trash2, Wifi, WifiOff } from 'lucide-react';
 import Image from 'next/image';
 import { getPexelsImageForLocationPage } from '@/app/actions';
 import { suggestActivities, type SuggestActivitiesInput } from '@/ai/flows/suggestActivitiesFlow';
 import { Input } from '@/components/ui/input';
 import { getTrip, updateTrip, Trip as FirestoreTrip, getCachedLocationImage, cacheLocationImage, subscribeToTripUpdates } from '@/lib/firestore';
 import { useToast } from '@/hooks/use-toast';
-import { LinkParser } from '@/components/LinkParser';
-import { QuickLinkHelper } from '@/components/QuickLinkHelper';
 
 type Activity = {
   id: string;
   notes: string;
   type: 'text' | 'link' | 'checklist';
-  completed?: boolean;
 };
 
 type DateBlock = {
@@ -55,8 +52,7 @@ const deepCopyAndParseDates = (locationsToCopy: any[]): Location[] => {
       date: new Date(db.date),
       activities: db.activities?.map((act: any) => ({
         ...act,
-        type: act.type || 'text',
-        completed: act.completed || false
+        type: act.type || 'text'
       })) || []
     }))
   }));
@@ -70,8 +66,7 @@ const deepCopyAndParseDatesSingle = (locationToCopy: any): Location => {
       date: new Date(db.date),
       activities: db.activities?.map((act: any) => ({
         ...act,
-        type: act.type || 'text',
-        completed: act.completed || false
+        type: act.type || 'text'
       })) || []
     }))
   };
@@ -93,8 +88,11 @@ export default function LocationPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // New state for modern note-taking
-  const [editingActivityId, setEditingActivityId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
+  const [focusedActivityId, setFocusedActivityId] = useState<string | null>(null);
+  const [activityTexts, setActivityTexts] = useState<Record<string, string>>({});
+  const [savingActivityId, setSavingActivityId] = useState<string | null>(null);
+  const [newNoteTexts, setNewNoteTexts] = useState<Record<string, string>>({});
+  const textareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
 
   // Real-time collaboration state
   const [isCollaborating, setIsCollaborating] = useState(false);
@@ -244,7 +242,7 @@ export default function LocationPage() {
               photographerUrl: cachedImage.photographerUrl
             });
           } else {
-            const bannerImage = await getPexelsImageForLocationPage(foundLocation.name);
+            const bannerImage = await getPexelsImageForLocationPage(`${foundLocation.name} landscape`);
             if (bannerImage) {
               setBanner(bannerImage);
               await cacheLocationImage(foundLocation.name, {
@@ -284,42 +282,56 @@ export default function LocationPage() {
   };
 
   const updateFirestore = async (newLocation: Location) => {
-    if (!trip) return;
+    if (!trip || !trip.id) {
+      console.error('❌ No trip or trip ID for saving');
+      return;
+    }
     
     try {
-      const newTrip = deepCopyAndParseDates(trip.tripData.locations);
-      const locationIndex = newTrip.findIndex((loc: Location) => loc.id === locationId);
+      console.log('🔄 Saving to Firestore...', { 
+        tripId: trip.id, 
+        locationId: newLocation.id,
+        activitiesCount: newLocation.dateBlocks.reduce((sum, db) => sum + db.activities.length, 0)
+      });
+      
+      const allLocations = [...trip.tripData.locations];
+      const locationIndex = allLocations.findIndex((loc: Location) => loc.id === locationId);
       
       if (locationIndex !== -1) {
-        newTrip[locationIndex] = newLocation;
+        // Update the specific location
+        allLocations[locationIndex] = newLocation;
         
         // Convert Date objects back to strings for Firestore
-        const firestoreLocations = newTrip.map(loc => ({
+        const firestoreLocations = allLocations.map(loc => ({
           ...loc,
           dateBlocks: loc.dateBlocks.map(db => ({
             ...db,
-            date: db.date.toISOString(),
+            date: db.date instanceof Date ? db.date.toISOString() : db.date,
             activities: db.activities.map(act => ({
               ...act,
-              type: act.type || 'text',
-              completed: act.completed || false
+              type: act.type || 'text'
             }))
           }))
         }));
         
-        await updateTrip(trip.id!, { tripData: { locations: firestoreLocations } });
+        console.log('🔄 Updating trip with locations:', firestoreLocations.length);
+        await updateTrip(trip.id, { tripData: { locations: firestoreLocations } });
+        console.log('✅ Firestore save completed successfully');
+      } else {
+        console.error('❌ Location not found in trip locations');
       }
     } catch (error) {
-      console.error('Error updating Firestore:', error);
+      console.error('❌ Error updating Firestore:', error);
       toast({
-        title: "Error",
-        description: "Failed to save changes. Please try again.",
+        title: "Save Failed",
+        description: "Failed to save your note. Please try again.",
         variant: "destructive",
       });
+      throw error; // Re-throw so the blur handler can handle it
     }
   };
 
-  // Modern note-taking functions
+  // Modern Notion-style note-taking functions
   const handleAddActivity = (dateBlockId: string) => {
     if (!location) return;
     
@@ -334,21 +346,35 @@ export default function LocationPage() {
         type: 'text' 
       });
       setLocation(newLocation);
+      setActivityTexts(prev => ({ ...prev, [newActivityId]: '' }));
+      setFocusedActivityId(newActivityId);
       updateFirestore(newLocation);
       
-      // Start editing the new activity
-      setEditingActivityId(newActivityId);
-      setEditingText('');
+      // Auto-focus the new textarea after a short delay
+      setTimeout(() => {
+        const textarea = textareaRefs.current[newActivityId];
+        if (textarea) {
+          textarea.focus();
+        }
+      }, 100);
     }
   };
 
-  const handleStartEdit = (activity: Activity) => {
-    setEditingActivityId(activity.id);
-    setEditingText(activity.notes);
+  const handleActivityTextChange = (activityId: string, text: string) => {
+    setActivityTexts(prev => ({ ...prev, [activityId]: text }));
   };
 
-  const handleSaveEdit = (dateBlockId: string, activityId: string) => {
-    if (!location || editingText.trim() === '') return;
+  const handleActivityBlur = async (dateBlockId: string, activityId: string) => {
+    if (!location) return;
+    
+    const text = activityTexts[activityId] || '';
+    console.log('💾 Saving note:', { activityId, text, dateBlockId });
+    
+    if (!text.trim()) {
+      console.log('⏸️ Skipping save - empty text');
+      setFocusedActivityId(null);
+      return;
+    }
     
     const newLocation = deepCopyAndParseDatesSingle(location);
     const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
@@ -356,19 +382,84 @@ export default function LocationPage() {
     if (dateBlock) {
       const activity = dateBlock.activities.find((act: Activity) => act.id === activityId);
       if (activity) {
-        activity.notes = editingText.trim();
-        setLocation(newLocation);
-        updateFirestore(newLocation);
+        const oldNotes = activity.notes || '';
+        if (oldNotes !== text.trim()) {
+          console.log('💾 Note changed, saving:', { old: oldNotes, new: text.trim() });
+          setSavingActivityId(activityId);
+          activity.notes = text.trim();
+          setLocation(newLocation);
+          
+          try {
+            await updateFirestore(newLocation);
+            console.log('✅ Note saved successfully');
+          } catch (error) {
+            console.error('❌ Save failed:', error);
+            // Revert the change if save failed
+            activity.notes = oldNotes;
+            setLocation(deepCopyAndParseDatesSingle(location));
+            toast({
+              title: "Save Failed",
+              description: "Your note couldn't be saved. Please try again.",
+              variant: "destructive",
+            });
+          } finally {
+            setSavingActivityId(null);
+          }
+        } else {
+          console.log('⏸️ Note unchanged, skipping save');
+        }
       }
     }
     
-    setEditingActivityId(null);
-    setEditingText('');
+    setFocusedActivityId(null);
   };
 
-  const handleCancelEdit = () => {
-    setEditingActivityId(null);
-    setEditingText('');
+  const handleActivityKeyDown = (e: React.KeyboardEvent, dateBlockId: string, activityId: string) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      // Save current activity and create a new one
+      handleActivityBlur(dateBlockId, activityId);
+      setTimeout(() => handleAddActivity(dateBlockId), 50);
+    }
+  };
+
+  const handleActivityFocus = (activityId: string) => {
+    setFocusedActivityId(activityId);
+  };
+
+  const handleNewNoteChange = (dateBlockId: string, text: string) => {
+    // Just update the temporary state, don't create the note yet
+    setNewNoteTexts(prev => ({ ...prev, [dateBlockId]: text }));
+  };
+
+  const handleNewNoteBlur = (dateBlockId: string) => {
+    const text = newNoteTexts[dateBlockId]?.trim();
+    if (text) {
+      console.log('💾 Creating new note on blur:', { dateBlockId, text });
+      // Create a new activity when user finishes typing
+      const newActivityId = crypto.randomUUID();
+      const newLocation = deepCopyAndParseDatesSingle(location!);
+      const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
+      
+      if (dateBlock) {
+        dateBlock.activities.push({ 
+          id: newActivityId, 
+          notes: text, 
+          type: 'text' 
+        });
+        setLocation(newLocation);
+        setActivityTexts(prev => ({ ...prev, [newActivityId]: text }));
+        setNewNoteTexts(prev => ({ ...prev, [dateBlockId]: '' })); // Clear the temporary text
+        updateFirestore(newLocation);
+      }
+    }
+  };
+
+  const handleNewNoteKeyDown = (e: React.KeyboardEvent, dateBlockId: string) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleNewNoteBlur(dateBlockId); // Create the note on Enter
+    }
   };
 
   const handleDeleteActivity = (dateBlockId: string, activityId: string) => {
@@ -384,21 +475,7 @@ export default function LocationPage() {
     }
   };
 
-  const handleToggleComplete = (dateBlockId: string, activityId: string) => {
-    if (!location) return;
-    
-    const newLocation = deepCopyAndParseDatesSingle(location);
-    const dateBlock = newLocation.dateBlocks.find((db: DateBlock) => db.id === dateBlockId);
-    
-    if (dateBlock) {
-      const activity = dateBlock.activities.find((act: Activity) => act.id === activityId);
-      if (activity) {
-        activity.completed = !activity.completed;
-        setLocation(newLocation);
-        updateFirestore(newLocation);
-      }
-    }
-  };
+
 
   const handleAddLinkToActivity = (dateBlockId: string, activityId: string, linkString: string) => {
     if (!location) return;
@@ -452,6 +529,22 @@ export default function LocationPage() {
       setIsGenerating(false);
     }
   };
+
+  // Sync activity texts with location data
+  useEffect(() => {
+    if (location) {
+      console.log('🔄 Syncing activity texts with location data:', location);
+      const texts: Record<string, string> = {};
+      location.dateBlocks.forEach(block => {
+        block.activities.forEach(activity => {
+          texts[activity.id] = activity.notes || '';
+          console.log('📝 Activity:', { id: activity.id, notes: activity.notes });
+        });
+      });
+      setActivityTexts(texts);
+      console.log('📝 Activity texts set:', texts);
+    }
+  }, [location]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -588,128 +681,78 @@ export default function LocationPage() {
       
       <main className="flex-1 p-4 md:p-6 lg:p-8 bg-background z-10 -mt-4 rounded-t-2xl shadow-lg">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
             {sortedDateBlocks.map((block) => (
-              <Card key={block.id} className="flex flex-col h-fit">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg font-semibold text-foreground/90">
+              <div key={block.id} className="bg-white rounded-lg border shadow-sm p-4 h-fit hover:shadow-md transition-shadow group">
+                {/* Date Header */}
+                <div className="mb-3">
+                  <h3 className="text-lg font-medium text-gray-900">
                     {format(block.date, 'EEEE, MMM d')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0 space-y-3">
-                  {/* Activities List */}
-                  <div className="space-y-2">
-                    {block.activities.map((activity) => (
-                      <div key={activity.id} className="group relative">
-                        {editingActivityId === activity.id ? (
-                          // Edit Mode
-                          <div className="space-y-2">
-                            <Textarea
-                              value={editingText}
-                              onChange={(e) => setEditingText(e.target.value)}
-                              placeholder="What's the plan?"
-                              className="min-h-[80px] resize-none border-2 border-blue-200 focus:border-blue-400 focus:ring-0"
-                              autoFocus
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleSaveEdit(block.id, activity.id)}
-                                className="bg-blue-600 hover:bg-blue-700"
-                              >
-                                <Check className="h-4 w-4 mr-1" />
-                                Save
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={handleCancelEdit}
-                              >
-                                <X className="h-4 w-4 mr-1" />
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          // View Mode
-                          <div className={`p-3 rounded-lg border transition-all duration-200 ${
-                            activity.completed 
-                              ? 'bg-green-50 border-green-200' 
-                              : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                          }`}>
-                            <div className="flex items-start gap-3">
-                              <button
-                                onClick={() => handleToggleComplete(block.id, activity.id)}
-                                className={`mt-1 flex-shrink-0 w-4 h-4 rounded border-2 transition-colors ${
-                                  activity.completed
-                                    ? 'bg-green-500 border-green-500'
-                                    : 'border-gray-300 hover:border-gray-400'
-                                }`}
-                              >
-                                {activity.completed && (
-                                  <Check className="w-full h-full text-white text-xs" />
-                                )}
-                              </button>
-                              
-                              <div className="flex-1 min-w-0">
-                                <div className={`${activity.completed ? 'line-through text-gray-500' : 'text-foreground'}`}>
-                                  {activity.notes ? (
-                                    <div className="whitespace-pre-wrap break-words">
-                                      <LinkParser text={activity.notes} />
-                                    </div>
-                                  ) : (
-                                    <span className="text-gray-400 italic">Empty note</span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <QuickLinkHelper
-                                  onAddLink={(linkString) => handleAddLinkToActivity(block.id, activity.id, linkString)}
-                                  locationName={location.name}
-                                  trigger={
-                                    <button
-                                      className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-                                      title="Add Google Maps link"
-                                    >
-                                      <MapPin className="h-3 w-3" />
-                                    </button>
-                                  }
-                                />
-                                <button
-                                  onClick={() => handleStartEdit(activity)}
-                                  className="p-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
-                                  title="Edit note"
-                                >
-                                  <Edit3 className="h-3 w-3" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteActivity(block.id, activity.id)}
-                                  className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                                  title="Delete note"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  </h3>
+                </div>
+                
+                {/* Notes List */}
+                <div className="space-y-2">
+                  {/* Existing notes */}
+                  {block.activities.filter(activity => activity.notes && activity.notes.trim() !== '').map((activity) => (
+                    <div key={activity.id} className="group flex items-start gap-2 p-2 hover:bg-gray-50 rounded-md">
+                      <div className="w-1 h-1 rounded-full bg-gray-400 mt-2.5 flex-shrink-0"></div>
+                      <textarea
+                        ref={(el) => {
+                          textareaRefs.current[activity.id] = el as any;
+                          if (el) {
+                            // Auto-size this specific textarea when it mounts
+                            setTimeout(() => {
+                              el.style.height = 'auto';
+                              el.style.height = el.scrollHeight + 'px';
+                            }, 0);
+                          }
+                        }}
+                        value={activityTexts[activity.id] !== undefined ? activityTexts[activity.id] : (activity.notes || '')}
+                        onChange={(e) => {
+                          handleActivityTextChange(activity.id, e.target.value);
+                          // Auto-resize on change
+                          const target = e.target as HTMLTextAreaElement;
+                          target.style.height = 'auto';
+                          target.style.height = target.scrollHeight + 'px';
+                        }}
+                        onFocus={() => handleActivityFocus(activity.id)}
+                        onBlur={() => handleActivityBlur(block.id, activity.id)}
+                        onKeyDown={(e) => handleActivityKeyDown(e, block.id, activity.id)}
+                        placeholder="Add a note..."
+                        className="flex-1 border-0 bg-transparent text-sm placeholder-gray-400 focus:outline-none text-gray-700 py-0.5 resize-none min-h-[20px] leading-relaxed"
+                        rows={1}
+                      />
+                      <button
+                        onClick={() => handleDeleteActivity(block.id, activity.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-opacity flex-shrink-0"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
                   
-                  {/* Add New Activity Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAddActivity(block.id)}
-                    className="w-full border-dashed border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Note
-                  </Button>
-                </CardContent>
-              </Card>
+                  {/* Always show one empty note line at the bottom */}
+                  <div className="flex items-start gap-2 p-2 hover:bg-gray-50 rounded-md">
+                    <div className="w-1 h-1 rounded-full bg-gray-300 mt-2.5 flex-shrink-0"></div>
+                    <textarea
+                      value={newNoteTexts[block.id] || ''}
+                      onChange={(e) => {
+                        handleNewNoteChange(block.id, e.target.value);
+                        // Auto-resize on change
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.height = 'auto';
+                        target.style.height = target.scrollHeight + 'px';
+                      }}
+                      onBlur={() => handleNewNoteBlur(block.id)}
+                      onKeyDown={(e) => handleNewNoteKeyDown(e, block.id)}
+                      placeholder="Add a note..."
+                      className="flex-1 border-0 bg-transparent text-sm placeholder-gray-400 focus:outline-none text-gray-700 py-0.5 resize-none min-h-[20px] leading-relaxed"
+                      rows={1}
+                    />
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
 
